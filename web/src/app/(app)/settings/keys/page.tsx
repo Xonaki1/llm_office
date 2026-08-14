@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 
 import { api } from "@/lib/api";
 import { canManage, useAuth, useOrgId } from "@/lib/auth";
+import { useLoader } from "@/lib/use-loader";
 import { formatDateTime } from "@/lib/format";
 import type { KeyMode, ProviderKey } from "@/lib/types";
 import { PROVIDER_LABELS } from "@/lib/types";
@@ -31,11 +32,10 @@ const KEY_MODE_HELP: Record<KeyMode, string> = {
 
 export default function KeysPage() {
   const orgId = useOrgId();
-  const { org, reload } = useAuth();
+  const { org, reload: reloadSession } = useAuth();
   const [keys, setKeys] = useState<ProviderKey[] | null>(null);
   const [provider, setProvider] = useState<string>("anthropic");
   const [secret, setSecret] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const editable = canManage(org?.role);
@@ -44,9 +44,7 @@ export default function KeysPage() {
     setKeys(await api.get<ProviderKey[]>(`/orgs/${orgId}/keys`));
   }, [orgId]);
 
-  useEffect(() => {
-    load().catch((err) => setError(err.message));
-  }, [load]);
+  const { error, setError } = useLoader(load);
 
   async function addKey() {
     setSaving(true);
@@ -75,7 +73,7 @@ export default function KeysPage() {
   async function setKeyMode(mode: KeyMode) {
     try {
       await api.patch(`/orgs/${orgId}`, { key_mode: mode });
-      await reload();
+      await reloadSession();
     } catch (err) {
       setError(err instanceof Error ? err.message : "could not change the key mode");
     }

@@ -45,13 +45,13 @@ class AnthropicProvider(BaseProvider):
         }
 
         if request.system:
-            block: dict[str, Any] = {"type": "text", "text": request.system}
+            system_block: dict[str, Any] = {"type": "text", "text": request.system}
             if spec.supports_prompt_cache and request.cache_system_prompt:
                 # The system prompt and the tool list are identical on every step
                 # of a run, so caching them turns later steps into cache reads at
                 # roughly a tenth of the input price.
-                block["cache_control"] = {"type": "ephemeral"}
-            params["system"] = [block]
+                system_block["cache_control"] = {"type": "ephemeral"}
+            params["system"] = [system_block]
 
         if request.tools:
             params["tools"] = [

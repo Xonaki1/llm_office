@@ -122,8 +122,8 @@ class OpenAICompatProvider(BaseProvider):
                 raise RetryableLLMError(
                     f"{self.provider_name} server error {exc.status_code}"
                 ) from exc
-            message = str(exc).lower()
-            if "context" in message and ("length" in message or "window" in message):
+            detail = str(exc).lower()
+            if "context" in detail and ("length" in detail or "window" in detail):
                 raise ContextWindowExceeded(str(exc)) from exc
             raise LLMError(f"{self.provider_name} error {exc.status_code}: {exc}") from exc
         except openai.APIConnectionError as exc:

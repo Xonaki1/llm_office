@@ -64,7 +64,7 @@ class GoogleProvider(BaseProvider):
                         types.FunctionDeclaration(
                             name=tool.name,
                             description=tool.description,
-                            parameters=_clean_schema(tool.parameters),
+                            parameters=_clean_schema(tool.parameters),  # type: ignore[arg-type]
                         )
                         for tool in request.tools
                     ]

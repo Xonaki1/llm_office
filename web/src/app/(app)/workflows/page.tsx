@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 
 import { api } from "@/lib/api";
 import { useOrgId } from "@/lib/auth";
+import { useLoader } from "@/lib/use-loader";
 import { formatRelative } from "@/lib/format";
 import type { Agent, Preset, PresetInfo, Workflow } from "@/lib/types";
 import {
@@ -31,7 +32,6 @@ export default function WorkflowsPage() {
   const [presets, setPresets] = useState<PresetInfo[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [creating, setCreating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const [name, setName] = useState("");
@@ -49,9 +49,7 @@ export default function WorkflowsPage() {
     setAgents(agentList);
   }, [orgId]);
 
-  useEffect(() => {
-    load().catch((err) => setError(err.message));
-  }, [load]);
+  const { error, setError } = useLoader(load);
 
   async function create() {
     setSaving(true);

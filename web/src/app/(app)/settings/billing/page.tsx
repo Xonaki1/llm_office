@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 
 import { api } from "@/lib/api";
 import { canManage, useAuth, useOrgId } from "@/lib/auth";
+import { useLoader } from "@/lib/use-loader";
 import { formatCents, formatDateTime } from "@/lib/format";
 import type { Balance, LedgerEntry, Member } from "@/lib/types";
 import {
@@ -20,14 +21,13 @@ import {
 
 export default function BillingPage() {
   const orgId = useOrgId();
-  const { org, reload } = useAuth();
+  const { org, reload: reloadSession } = useAuth();
   const [balance, setBalance] = useState<Balance | null>(null);
   const [ledger, setLedger] = useState<LedgerEntry[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [amount, setAmount] = useState(1000);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("member");
-  const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const isOwner = org?.role === "owner";
@@ -43,9 +43,7 @@ export default function BillingPage() {
     setMembers(memberData);
   }, [orgId]);
 
-  useEffect(() => {
-    load().catch((err) => setError(err.message));
-  }, [load]);
+  const { error, setError } = useLoader(load);
 
   async function topup() {
     setBusy(true);
@@ -55,7 +53,7 @@ export default function BillingPage() {
         amount_cents: amount,
         description: "manual top-up",
       });
-      await Promise.all([load(), reload()]);
+      await Promise.all([load(), reloadSession()]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "top-up failed");
     } finally {

@@ -122,7 +122,7 @@ async def replay(
     run_id: str, *, after_seq: int = 0, client: redis.Redis | None = None
 ) -> list[dict[str, Any]]:
     r = client or get_redis()
-    raw = await r.lrange(_history_key(run_id), 0, -1)
+    raw = await r.lrange(_history_key(run_id), 0, -1)  # type: ignore[misc]
     events = [json.loads(item) for item in raw]
     if after_seq:
         events = [e for e in events if e.get("seq", 0) > after_seq]

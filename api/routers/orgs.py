@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import cast
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import select
 
@@ -18,6 +20,7 @@ from api.schemas import (
     MemberOut,
     MemberRoleUpdate,
     OrgUpdate,
+    Role,
     TopupRequest,
 )
 from core import audit, billing
@@ -53,7 +56,7 @@ async def list_members(ctx: OrgDep, session: SessionDep) -> list[MemberOut]:
             user_id=user.id,
             email=user.email,
             name=user.name,
-            role=membership.role,
+            role=cast("Role", membership.role),
             joined_at=membership.created_at,
         )
         for membership, user in rows
@@ -108,7 +111,7 @@ async def add_member(
         user_id=user.id,
         email=user.email,
         name=user.name,
-        role=membership.role,
+        role=cast("Role", membership.role),
         joined_at=membership.created_at,
     )
 

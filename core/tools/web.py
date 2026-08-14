@@ -76,7 +76,7 @@ async def _resolve(host: str) -> list[str]:
         infos = await loop.getaddrinfo(host, None, proto=socket.IPPROTO_TCP)
     except socket.gaierror as exc:
         raise UnsafeUrl(f"could not resolve host {host!r}") from exc
-    return [info[4][0] for info in infos]
+    return [str(info[4][0]) for info in infos]
 
 
 async def assert_safe_url(url: str) -> str:

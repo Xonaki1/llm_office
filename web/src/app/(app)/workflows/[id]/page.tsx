@@ -1,10 +1,11 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 
 import { api } from "@/lib/api";
 import { useOrgId } from "@/lib/auth";
+import { useLoader } from "@/lib/use-loader";
 import type { Agent, PresetInfo, Run, Workflow } from "@/lib/types";
 import {
   Badge,
@@ -32,7 +33,6 @@ export default function WorkflowDetailPage() {
   const [graph, setGraph] = useState<Graph>({});
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [runInput, setRunInput] = useState("");
@@ -54,9 +54,7 @@ export default function WorkflowDetailPage() {
     setDirty(false);
   }, [orgId, workflowId]);
 
-  useEffect(() => {
-    load().catch((err) => setError(err.message));
-  }, [load]);
+  const { error, setError } = useLoader(load);
 
   async function save() {
     setSaving(true);

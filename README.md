@@ -1,5 +1,7 @@
 # Agents Office
 
+[![CI](https://github.com/Xonaki1/llm_office/actions/workflows/ci.yml/badge.svg)](https://github.com/Xonaki1/llm_office/actions/workflows/ci.yml)
+
 Teams of AI agents with distinct roles that work on one task together — in a
 pipeline, under a supervisor, arguing it out before a judge, or handing work to
 each other. Models come from **Anthropic, OpenAI, xAI and Google**, running on
@@ -26,6 +28,7 @@ Browser ──▶ Caddy ──┬──▶ Next.js (UI, React Flow editor, live 
 - [Security](#security)
 - [Operations](#operations)
 - [Testing](#testing)
+- [Continuous integration](#continuous-integration)
 - [Not built yet](#not-built-yet)
 
 ## Stack
@@ -33,7 +36,7 @@ Browser ──▶ Caddy ──┬──▶ Next.js (UI, React Flow editor, live 
 | Layer | Choice | Why |
 |---|---|---|
 | API | FastAPI (async) | SSE, long-lived streams, one language with the workers |
-| UI | Next.js 15 App Router, Tailwind 4, React Flow | Same origin as the API, so the refresh token can be an httpOnly cookie |
+| UI | Next.js 16 App Router, Tailwind 4, React Flow | Same origin as the API, so the refresh token can be an httpOnly cookie |
 | Orchestration | Custom engine + topology presets | Budget, cancellation and cost accounting live in the step executor, not in each topology |
 | Queue | ARQ on Redis | Runs take minutes; nothing long-lived belongs in an HTTP handler |
 | Events | Redis pub/sub + capped replay list | Reconnect with `Last-Event-ID` and lose nothing |
@@ -332,11 +335,51 @@ database so a crashed worker cannot leak a slot permanently.
 cd web && npm run typecheck && npm run build
 ```
 
+Or all of it at once:
+
+```bash
+make ci
+```
+
 217 tests cover the crypto envelope and rotation, artifact path safety, budget
 and cancellation guards, all six topologies and their validators, the tool loop
 and its ceilings, the SSRF guard, the credit ledger, auth and token rotation,
 tenant isolation, and end-to-end run execution against a fake provider. The
 suite runs on in-memory SQLite and fake Redis, so it needs no services.
+
+## Continuous integration
+
+Every push and pull request runs six jobs; `make ci` runs everything that works
+without services, so a red pipeline is not the first you hear of a failure.
+
+| Job | What it protects |
+|---|---|
+| Backend | Ruff, mypy and the test suite with coverage |
+| Migrations | Real PostgreSQL: upgrade, **drift check**, seed, downgrade, re-upgrade |
+| Package | Builds the wheel, installs it clean, imports every module |
+| Frontend | ESLint, `tsc --noEmit`, production build |
+| Docker | Both images build, with a layer cache |
+| Audit | `pip-audit` and `npm audit` at high severity |
+
+Two of those exist because of bugs this project actually shipped:
+
+- **Drift check.** `alembic check` fails when the models and the migrations
+  disagree — a mismatch that otherwise surfaces on a live deployment.
+- **Package check.** The Docker image is built from a wheel, so a package left
+  out of `[tool.setuptools] packages` produces an image missing a whole feature
+  while the test suite, running from source, stays green. `scripts/verify_package.py`
+  installs the wheel into a clean environment and asserts every module resolves
+  *from that install* — importing alone is not enough, because the source tree
+  on `sys.path` would cover for the gap.
+
+The migrations job also seeds rows before downgrading and re-upgrading, because
+adding a `NOT NULL` column without a server default passes on an empty database
+and fails on a real one.
+
+A single `CI` gate job aggregates the rest, so branch protection needs one
+required check. Dependabot groups patch bumps into one pull request a week, and
+a scheduled audit runs on Mondays so a new advisory against unchanged
+dependencies still surfaces.
 
 ## Not built yet
 

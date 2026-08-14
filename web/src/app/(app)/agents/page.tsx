@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 
 import { api } from "@/lib/api";
 import { useAuth, useOrgId } from "@/lib/auth";
+import { useLoader } from "@/lib/use-loader";
 import type { Agent, Effort, ModelInfo, ToolCatalogue, ToolInfo } from "@/lib/types";
 import { PROVIDER_LABELS } from "@/lib/types";
 import {
@@ -61,7 +62,6 @@ export default function AgentsPage() {
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [toolCatalogue, setToolCatalogue] = useState<ToolCatalogue | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
@@ -75,9 +75,7 @@ export default function AgentsPage() {
     setToolCatalogue(tools);
   }, [orgId]);
 
-  useEffect(() => {
-    load().catch((err) => setError(err.message));
-  }, [load]);
+  const { error, setError } = useLoader(load);
 
   const usableModels = models.filter((m) => m.available);
   const selectedModel = models.find((m) => m.id === draft?.model);
