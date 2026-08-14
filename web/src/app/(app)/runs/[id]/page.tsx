@@ -14,7 +14,7 @@ import {
 } from "@/lib/format";
 import type { ArtifactContent } from "@/lib/types";
 import { TERMINAL_STATUSES } from "@/lib/types";
-import { useRunStream, type LiveStep } from "@/lib/use-run-stream";
+import { useRunStream, type LiveStep, type LiveToolCall } from "@/lib/use-run-stream";
 import {
   Badge,
   Button,
@@ -245,14 +245,83 @@ function StepCard({ step }: { step: LiveStep }) {
         </div>
       </div>
 
-      <pre
-        className={cx(
-          "max-h-96 overflow-y-auto whitespace-pre-wrap break-words text-sm text-ink-200",
-          !step.done && "stream-cursor",
-        )}
-      >
-        {text}
-      </pre>
+      {step.toolCalls.length > 0 && (
+        <div className="mb-3 space-y-1.5">
+          {step.toolCalls.map((call) => (
+            <ToolCallRow key={call.call} call={call} />
+          ))}
+        </div>
+      )}
+
+      {text && (
+        <pre
+          className={cx(
+            "max-h-96 overflow-y-auto whitespace-pre-wrap break-words text-sm text-ink-200",
+            !step.done && "stream-cursor",
+          )}
+        >
+          {text}
+        </pre>
+      )}
     </Card>
+  );
+}
+
+function ToolCallRow({ call }: { call: LiveToolCall }) {
+  const [open, setOpen] = useState(false);
+  // Show the argument that identifies the call at a glance — a path or a URL
+  // says far more than the tool name alone.
+  const summary =
+    (call.arguments.path as string) ??
+    (call.arguments.url as string) ??
+    (call.arguments.query as string) ??
+    (call.arguments.prefix as string) ??
+    "";
+
+  return (
+    <div
+      className={cx(
+        "rounded-md border px-2.5 py-1.5 text-xs",
+        call.isError
+          ? "border-red-500/30 bg-red-500/5"
+          : "border-ink-800 bg-ink-950/60",
+      )}
+    >
+      <button
+        onClick={() => setOpen((value) => !value)}
+        className="flex w-full items-center gap-2 text-left"
+      >
+        <span className="text-ink-500">{open ? "▾" : "▸"}</span>
+        <span className="font-mono text-brand-400">{call.tool}</span>
+        {summary && <span className="truncate text-ink-400">{summary}</span>}
+        <span className="ml-auto flex items-center gap-2 text-ink-600">
+          {call.isError && <span className="text-red-400">error</span>}
+          {call.done ? (
+            <span>{formatDuration(call.latencyMs ?? 0)}</span>
+          ) : (
+            <Spinner className="h-3 w-3" />
+          )}
+        </span>
+      </button>
+
+      {open && (
+        <div className="mt-2 space-y-2 border-t border-ink-800 pt-2">
+          <div>
+            <p className="mb-1 text-ink-600">Arguments</p>
+            <pre className="overflow-x-auto rounded bg-ink-950 p-2 text-ink-300">
+              {JSON.stringify(call.arguments, null, 2)}
+            </pre>
+          </div>
+          {call.preview && (
+            <div>
+              <p className="mb-1 text-ink-600">Result</p>
+              <pre className="max-h-48 overflow-y-auto whitespace-pre-wrap rounded bg-ink-950 p-2 text-ink-300">
+                {call.preview}
+              </pre>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

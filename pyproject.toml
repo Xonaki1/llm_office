@@ -51,6 +51,7 @@ packages = [
     "core.llm",
     "core.llm.providers",
     "core.orchestration",
+    "core.tools",
     "worker",
     "scripts",
 ]

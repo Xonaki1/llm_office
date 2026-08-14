@@ -6,6 +6,16 @@ import { api, openRunStream } from "@/lib/api";
 import type { RunDetail, RunEvent, RunStatus } from "@/lib/types";
 import { TERMINAL_STATUSES } from "@/lib/types";
 
+export interface LiveToolCall {
+  call: number;
+  tool: string;
+  arguments: Record<string, unknown>;
+  preview?: string;
+  isError?: boolean;
+  latencyMs?: number;
+  done: boolean;
+}
+
 export interface LiveStep {
   index: number;
   agentName: string;
@@ -19,6 +29,8 @@ export interface LiveStep {
   tokensOut?: number;
   costMicrocents?: number;
   latencyMs?: number;
+  toolNames: string[];
+  toolCalls: LiveToolCall[];
   done: boolean;
 }
 
@@ -88,10 +100,59 @@ export function useRunStream(orgId: string, runId: string): RunStreamState {
               role: event.role,
               model: event.model,
               streaming: "",
+              toolNames: event.tools ?? [],
+              toolCalls: [],
               done: false,
             },
           ];
         });
+        break;
+
+      case "tool.call":
+        setSteps((current) =>
+          current.map((step) =>
+            step.index === event.step
+              ? {
+                  ...step,
+                  // A tool call means the model stopped writing text; clear the
+                  // buffer so the next round does not append to a stale reply.
+                  streaming: "",
+                  toolCalls: [
+                    ...step.toolCalls,
+                    {
+                      call: event.call,
+                      tool: event.tool,
+                      arguments: event.arguments,
+                      done: false,
+                    },
+                  ],
+                }
+              : step,
+          ),
+        );
+        break;
+
+      case "tool.result":
+        setSteps((current) =>
+          current.map((step) =>
+            step.index === event.step
+              ? {
+                  ...step,
+                  toolCalls: step.toolCalls.map((call) =>
+                    call.call === event.call
+                      ? {
+                          ...call,
+                          preview: event.preview,
+                          isError: event.is_error,
+                          latencyMs: event.latency_ms,
+                          done: true,
+                        }
+                      : call,
+                  ),
+                }
+              : step,
+          ),
+        );
         break;
 
       case "step.token":
@@ -190,6 +251,18 @@ export function useRunStream(orgId: string, runId: string): RunStreamState {
               tokensOut: step.tokens_out,
               costMicrocents: step.cost_microcents,
               latencyMs: step.latency_ms,
+              toolNames: [],
+              toolCalls: detail.tool_calls
+                .filter((call) => call.step_index === step.index)
+                .map((call) => ({
+                  call: call.call_index,
+                  tool: call.tool,
+                  arguments: call.arguments,
+                  preview: call.result.slice(0, 400),
+                  isError: call.is_error,
+                  latencyMs: call.latency_ms,
+                  done: true,
+                })),
               done: true,
             })),
           );

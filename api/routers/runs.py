@@ -19,11 +19,18 @@ from api.deps import (
     client_ip,
     enforce_api_rate_limit,
 )
-from api.schemas import ArtifactContent, ArtifactOut, RunCreate, RunDetail, RunOut
+from api.schemas import (
+    ArtifactContent,
+    ArtifactOut,
+    RunCreate,
+    RunDetail,
+    RunOut,
+    ToolCallOut,
+)
 from core import audit, billing
 from core import events as ev
 from core.config import get_settings
-from core.models import Artifact, Run, Workflow
+from core.models import Artifact, Run, ToolCallLog, Workflow
 from core.orchestration.presets import WorkflowConfigError, validate_graph
 from core.runner import TERMINAL_STATUSES
 
@@ -187,7 +194,11 @@ async def get_run(run_id: str, ctx: OrgDep, session: SessionDep) -> Run:
     stmt = (
         select(Run)
         .where(Run.id == run_id)
-        .options(selectinload(Run.steps), selectinload(Run.artifacts))
+        .options(
+            selectinload(Run.steps),
+            selectinload(Run.artifacts),
+            selectinload(Run.tool_calls),
+        )
     )
     run = (await session.execute(stmt)).scalar_one_or_none()
     if run is None or run.org_id != ctx.org_id:
@@ -215,6 +226,21 @@ async def get_artifact(
     if artifact is None or artifact.run_id != run_id:
         raise HTTPException(status_code=404, detail="artifact not found")
     return artifact
+
+
+@router.get("/{run_id}/tool-calls", response_model=list[ToolCallOut])
+async def list_tool_calls(
+    run_id: str, ctx: OrgDep, session: SessionDep
+) -> list[ToolCallLog]:
+    """Every tool a run invoked, with arguments and results — the audit view of
+    what the agents actually touched."""
+    await _get_owned(session, ctx.org_id, run_id)
+    stmt = (
+        select(ToolCallLog)
+        .where(ToolCallLog.run_id == run_id)
+        .order_by(ToolCallLog.step_index, ToolCallLog.call_index)
+    )
+    return list((await session.execute(stmt)).scalars().all())
 
 
 @router.get("/{run_id}/stream")

@@ -48,6 +48,22 @@ class Settings(BaseSettings):
     google_api_key: str | None = None
     openrouter_api_key: str | None = None
 
+    # --- tools ---
+    tools_enabled: bool = True
+    tools_network_enabled: bool = True
+    # Ceiling on the tool-call round trips one agent turn may make before the
+    # engine forces it to answer. Each round trip is another billed model call.
+    max_tool_iterations: int = 8
+    max_tool_calls_per_turn: int = 6
+    tool_user_agent: str = "AgentsOffice/1.0 (+https://github.com/Xonaki1/llm_office)"
+    # Empty allow list means "any public host". The deny list always applies.
+    tool_allowed_hosts: list[str] = Field(default_factory=list)
+    tool_blocked_hosts: list[str] = Field(default_factory=list)
+    # none | brave | tavily
+    search_provider: str = "none"
+    brave_search_api_key: str | None = None
+    tavily_api_key: str | None = None
+
     # --- run limits (platform ceiling; a workflow may ask for less, never more) ---
     max_steps_per_run: int = 40
     max_cost_cents_per_run: int = 500
@@ -87,7 +103,10 @@ class Settings(BaseSettings):
             return {"1": text}
         return value
 
-    @field_validator("cors_origins", "trusted_hosts", mode="before")
+    @field_validator(
+        "cors_origins", "trusted_hosts", "tool_allowed_hosts", "tool_blocked_hosts",
+        mode="before",
+    )
     @classmethod
     def _split_csv(cls, value: Any) -> Any:
         if isinstance(value, str):
@@ -112,6 +131,14 @@ class Settings(BaseSettings):
                     "refusing to start in production without: " + ", ".join(missing)
                 )
         return self
+
+    @field_validator("search_provider")
+    @classmethod
+    def _known_search_provider(cls, value: str) -> str:
+        allowed = {"none", "brave", "tavily"}
+        if value not in allowed:
+            raise ValueError(f"SEARCH_PROVIDER must be one of {sorted(allowed)}")
+        return value
 
     @property
     def is_production(self) -> bool:

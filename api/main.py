@@ -17,7 +17,7 @@ from api.middleware import (
     RequestContextMiddleware,
     SecurityHeadersMiddleware,
 )
-from api.routers import admin, agents, auth, keys, models, orgs, runs, workflows
+from api.routers import admin, agents, auth, keys, models, orgs, runs, tools, workflows
 from api.schemas import HealthOut
 from core.config import get_settings
 from core.crypto import CryptoError
@@ -79,6 +79,7 @@ for router in (
     runs.router,
     keys.router,
     models.router,
+    tools.router,
     admin.router,
 ):
     app.include_router(router)

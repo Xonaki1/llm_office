@@ -26,6 +26,7 @@ from core.llm.providers import (
     OpenAICompatProvider,
     RetryableLLMError,
     TokenCallback,
+    ToolSpec,
 )
 from core.llm.registry import Provider, get_spec, normalise_effort
 
@@ -78,6 +79,7 @@ class LLMRouter:
         effort: str = "medium",
         json_mode: bool = False,
         timeout_seconds: float = 600.0,
+        tools: list[ToolSpec] | None = None,
         on_token: TokenCallback | None = None,
     ) -> RoutedResult:
         spec = get_spec(model)
@@ -92,6 +94,7 @@ class LLMRouter:
             effort=normalise_effort(effort),
             json_mode=json_mode,
             timeout_seconds=timeout_seconds,
+            tools=tools or [],
         )
 
         last_error: Exception | None = None

@@ -4,12 +4,13 @@ import { useCallback, useEffect, useState } from "react";
 
 import { api } from "@/lib/api";
 import { useAuth, useOrgId } from "@/lib/auth";
-import type { Agent, Effort, ModelInfo } from "@/lib/types";
+import type { Agent, Effort, ModelInfo, ToolCatalogue, ToolInfo } from "@/lib/types";
 import { PROVIDER_LABELS } from "@/lib/types";
 import {
   Badge,
   Button,
   Card,
+  cx,
   EmptyState,
   ErrorBanner,
   Field,
@@ -31,6 +32,7 @@ interface Draft {
   effort: Effort;
   max_tokens: number;
   system_prompt: string;
+  tools: string[];
 }
 
 const BLANK: Draft = {
@@ -40,6 +42,16 @@ const BLANK: Draft = {
   effort: "medium",
   max_tokens: 8000,
   system_prompt: "",
+  tools: [],
+};
+
+const SIDE_EFFECTS: Record<
+  string,
+  { label: string; tone: "neutral" | "warning" | "danger" }
+> = {
+  read_only: { label: "reads run state", tone: "neutral" },
+  write: { label: "writes files", tone: "warning" },
+  network: { label: "reaches the internet", tone: "danger" },
 };
 
 export default function AgentsPage() {
@@ -47,17 +59,20 @@ export default function AgentsPage() {
   const { org } = useAuth();
   const [agents, setAgents] = useState<Agent[] | null>(null);
   const [models, setModels] = useState<ModelInfo[]>([]);
+  const [toolCatalogue, setToolCatalogue] = useState<ToolCatalogue | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
-    const [agentList, modelList] = await Promise.all([
+    const [agentList, modelList, tools] = await Promise.all([
       api.get<Agent[]>(`/orgs/${orgId}/agents`),
       api.get<ModelInfo[]>(`/orgs/${orgId}/models`),
+      api.get<ToolCatalogue>("/tools"),
     ]);
     setAgents(agentList);
     setModels(modelList);
+    setToolCatalogue(tools);
   }, [orgId]);
 
   useEffect(() => {
@@ -79,11 +94,12 @@ export default function AgentsPage() {
         effort: draft.effort,
         max_tokens: draft.max_tokens,
         system_prompt: draft.system_prompt,
+        tools: draft.tools,
       };
       if (draft.id) {
         await api.patch(`/orgs/${orgId}/agents/${draft.id}`, payload);
       } else {
-        await api.post(`/orgs/${orgId}/agents`, { ...payload, tools: [] });
+        await api.post(`/orgs/${orgId}/agents`, payload);
       }
       setDraft(null);
       await load();
@@ -156,6 +172,19 @@ export default function AgentsPage() {
                   {agent.system_prompt || "No system prompt."}
                 </p>
 
+                {agent.tools.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {agent.tools.map((tool) => (
+                      <span
+                        key={tool}
+                        className="rounded bg-ink-800 px-1.5 py-0.5 font-mono text-[10px] text-ink-400"
+                      >
+                        {tool}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
                 <dl className="mt-3 grid grid-cols-3 gap-2 text-xs text-ink-500">
                   <div>
                     <dt className="text-ink-600">Model</dt>
@@ -186,6 +215,7 @@ export default function AgentsPage() {
                         effort: agent.effort,
                         max_tokens: agent.max_tokens,
                         system_prompt: agent.system_prompt,
+                        tools: agent.tools ?? [],
                       })
                     }
                   >
@@ -286,6 +316,56 @@ export default function AgentsPage() {
                 />
               </Field>
             </div>
+
+            <Field
+              label="Tools"
+              hint={
+                toolCatalogue?.limits.tools_enabled
+                  ? `Up to ${toolCatalogue.limits.max_iterations} tool round trips per turn. Each one is another billed model call.`
+                  : "Tools are disabled on this deployment."
+              }
+            >
+              <div className="space-y-1.5">
+                {(toolCatalogue?.tools ?? []).map((tool: ToolInfo) => {
+                  const meta = SIDE_EFFECTS[tool.side_effect];
+                  return (
+                    <label
+                      key={tool.name}
+                      className={cx(
+                        "flex cursor-pointer gap-2 rounded-md border border-ink-800 p-2",
+                        !tool.available && "cursor-not-allowed opacity-50",
+                      )}
+                    >
+                      <input
+                        type="checkbox"
+                        className="mt-1"
+                        disabled={!tool.available}
+                        checked={draft.tools.includes(tool.name)}
+                        onChange={(e) =>
+                          setDraft({
+                            ...draft,
+                            tools: e.target.checked
+                              ? [...draft.tools, tool.name]
+                              : draft.tools.filter((name) => name !== tool.name),
+                          })
+                        }
+                      />
+                      <span className="min-w-0">
+                        <span className="flex flex-wrap items-center gap-2">
+                          <span className="font-mono text-xs text-ink-100">{tool.name}</span>
+                          <Badge tone={meta?.tone ?? "neutral"}>{meta?.label}</Badge>
+                        </span>
+                        <span className="mt-0.5 block text-xs text-ink-500">
+                          {tool.available
+                            ? tool.description
+                            : (tool.unavailable_reason ?? tool.description)}
+                        </span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </Field>
 
             <Field
               label="System prompt"

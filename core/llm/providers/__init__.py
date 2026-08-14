@@ -9,7 +9,11 @@ from core.llm.providers.base import (
     RefusalError,
     RetryableLLMError,
     TokenCallback,
+    ToolCallRequest,
+    ToolResultPart,
+    ToolSpec,
     Usage,
+    parse_arguments,
 )
 from core.llm.providers.google_provider import GoogleProvider
 from core.llm.providers.openai_compat import OpenAICompatProvider
@@ -27,5 +31,9 @@ __all__ = [
     "RefusalError",
     "RetryableLLMError",
     "TokenCallback",
+    "ToolCallRequest",
+    "ToolResultPart",
+    "ToolSpec",
     "Usage",
+    "parse_arguments",
 ]

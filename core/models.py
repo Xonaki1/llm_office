@@ -240,6 +240,11 @@ class Run(Base, TimestampMixin):
     artifacts: Mapped[list[Artifact]] = relationship(
         back_populates="run", cascade="all, delete-orphan"
     )
+    tool_calls: Mapped[list[ToolCallLog]] = relationship(
+        back_populates="run",
+        cascade="all, delete-orphan",
+        order_by="(ToolCallLog.step_index, ToolCallLog.call_index)",
+    )
 
 
 Index(
@@ -276,6 +281,10 @@ class RunStep(Base, TimestampMixin):
     cost_microcents: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
     latency_ms: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     attempts: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    # A turn that used tools spans several model calls; both counts are kept so
+    # a slow or expensive step can be attributed to the right cause.
+    model_calls: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    tool_calls: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     run: Mapped[Run] = relationship(back_populates="steps")
 
@@ -307,6 +316,38 @@ class Artifact(Base, TimestampMixin):
     produced_by_agent: Mapped[str | None] = mapped_column(String(200))
 
     run: Mapped[Run] = relationship(back_populates="artifacts")
+
+
+class ToolCallLog(Base, TimestampMixin):
+    """Every tool invocation made during a run.
+
+    Tools are where an agent reaches outside its own transcript, so each call is
+    recorded with its arguments and result - an audit of a run has to be able to
+    answer "what did it actually touch?" without replaying the model.
+    """
+
+    __tablename__ = "tool_calls"
+    __table_args__ = (
+        UniqueConstraint("run_id", "step_index", "call_index", name="uq_tool_call_index"),
+        Index("ix_tool_calls_run", "run_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    run_id: Mapped[str] = mapped_column(
+        ForeignKey("runs.id", ondelete="CASCADE"), nullable=False
+    )
+    step_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    call_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    agent_id: Mapped[str | None] = mapped_column(String(36))
+    agent_name: Mapped[str] = mapped_column(String(200), default="", nullable=False)
+    tool: Mapped[str] = mapped_column(String(80), nullable=False)
+    arguments: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    result: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    is_error: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    latency_ms: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    meta: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+    run: Mapped[Run] = relationship(back_populates="tool_calls")
 
 
 # --- billing -------------------------------------------------------------

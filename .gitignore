@@ -2,6 +2,8 @@
 .venv/
 __pycache__/
 *.py[cod]
+build/
+dist/
 *.egg-info/
 .pytest_cache/
 .ruff_cache/
@@ -23,6 +25,7 @@ web/node_modules/
 web/.next/
 web/out/
 web/next-env.d.ts
+web/tsconfig.tsbuildinfo
 
 # Editors and OS
 .DS_Store

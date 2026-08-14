@@ -94,6 +94,87 @@ class TestAgents:
         assert response.status_code == 201, response.text
 
 
+class TestTools:
+    async def test_catalogue_lists_tools_and_limits(self, client, account):
+        response = await client.get("/tools", headers=account.headers)
+        assert response.status_code == 200
+        body = response.json()
+        names = {t["name"] for t in body["tools"]}
+        assert {"read_artifact", "write_artifact", "web_fetch"} <= names
+        assert body["limits"]["max_iterations"] > 0
+
+    async def test_unavailable_tools_explain_why(self, client, account):
+        response = await client.get("/tools", headers=account.headers)
+        search = next(t for t in response.json()["tools"] if t["name"] == "web_search")
+        assert search["available"] is False
+        assert search["unavailable_reason"]
+
+    async def test_catalogue_requires_authentication(self, client):
+        assert (await client.get("/tools")).status_code == 401
+
+    async def test_agent_accepts_known_tools(self, client, account):
+        response = await client.post(
+            f"/orgs/{account.org_id}/agents",
+            json={
+                "name": "Builder",
+                "role": "dev",
+                "model": "claude-opus-5",
+                "tools": ["read_artifact", "write_artifact"],
+            },
+            headers=account.headers,
+        )
+        assert response.status_code == 201
+        assert response.json()["tools"] == ["read_artifact", "write_artifact"]
+
+    async def test_agent_rejects_an_unknown_tool(self, client, account):
+        # Rejecting at save time beats dropping silently: an agent that looks
+        # configured but never gets the capability is worse than an error.
+        response = await client.post(
+            f"/orgs/{account.org_id}/agents",
+            json={
+                "name": "Builder",
+                "role": "dev",
+                "model": "claude-opus-5",
+                "tools": ["read_artifact", "launch_missiles"],
+            },
+            headers=account.headers,
+        )
+        assert response.status_code == 422
+        assert "launch_missiles" in response.json()["detail"]
+
+    async def test_duplicate_tool_names_are_collapsed(self, client, account):
+        response = await client.post(
+            f"/orgs/{account.org_id}/agents",
+            json={
+                "name": "Builder",
+                "role": "dev",
+                "model": "claude-opus-5",
+                "tools": ["read_artifact", "read_artifact"],
+            },
+            headers=account.headers,
+        )
+        assert response.json()["tools"] == ["read_artifact"]
+
+    async def test_tools_can_be_cleared_by_update(self, client, account):
+        created = await client.post(
+            f"/orgs/{account.org_id}/agents",
+            json={
+                "name": "Builder",
+                "role": "dev",
+                "model": "claude-opus-5",
+                "tools": ["read_artifact"],
+            },
+            headers=account.headers,
+        )
+        agent_id = created.json()["id"]
+        updated = await client.patch(
+            f"/orgs/{account.org_id}/agents/{agent_id}",
+            json={"tools": []},
+            headers=account.headers,
+        )
+        assert updated.json()["tools"] == []
+
+
 class TestWorkflows:
     async def test_graph_is_validated_on_save(self, client, account, agent_ids):
         response = await client.post(

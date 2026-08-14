@@ -88,10 +88,11 @@ async def seed(email: str, password: str, org_name: str, credits_cents: int) -> 
             model="claude-opus-5",
             effort="high",
             max_tokens=32_000,
+            tools=["list_artifacts", "read_artifact", "write_artifact", "edit_artifact"],
             system_prompt=(
                 "Implement the spec. Write complete, runnable code with no "
-                "placeholders or TODOs, and emit each file as a labelled artifact "
-                "block. Explain non-obvious decisions in two sentences at most."
+                "placeholders or TODOs. Explain non-obvious decisions in two "
+                "sentences at most."
             ),
         )
         reviewer = Agent(
@@ -101,11 +102,12 @@ async def seed(email: str, password: str, org_name: str, credits_cents: int) -> 
             model="gpt-5",
             effort="high",
             max_tokens=16_000,
+            tools=["list_artifacts", "read_artifact", "edit_artifact"],
             system_prompt=(
-                "Review the implementation against the spec. Report every issue you "
-                "find with a severity and your confidence, including ones you are "
-                "unsure about — a later pass filters them. Then emit the corrected "
-                "files as artifact blocks."
+                "Review the implementation against the spec. Read the files before "
+                "judging them. Report every issue you find with a severity and your "
+                "confidence, including ones you are unsure about — a later pass "
+                "filters them. Fix what you find with targeted edits."
             ),
         )
         researcher = Agent(
@@ -114,6 +116,9 @@ async def seed(email: str, password: str, org_name: str, credits_cents: int) -> 
             role="researcher",
             model="gemini-2.5-flash",
             effort="medium",
+            # web_search is dropped by the registry unless a search provider is
+            # configured, so this stays valid on a deployment without one.
+            tools=["web_search", "web_fetch", "list_artifacts"],
             system_prompt=(
                 "Gather and organise the background the team needs. Be concrete: "
                 "name specific approaches, trade-offs and failure modes rather than "

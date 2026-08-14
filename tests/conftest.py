@@ -37,7 +37,7 @@ import httpx  # noqa: E402
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine  # noqa: E402
 from sqlalchemy.pool import StaticPool  # noqa: E402
 
-from core.llm.providers.base import LLMResult, Usage  # noqa: E402
+from core.llm.providers.base import LLMResult, ToolCallRequest, Usage  # noqa: E402
 from core.llm.router import RoutedResult  # noqa: E402
 from core.models import Base  # noqa: E402
 from core.ratelimit import RateLimitResult  # noqa: E402
@@ -113,14 +113,23 @@ class FakeEmitter:
 
 
 @dataclass
+class ToolTurn:
+    """A scripted reply in which the model asks for tools instead of answering."""
+
+    calls: list[tuple[str, dict[str, Any]]]
+    text: str = ""
+
+
+@dataclass
 class FakeLLM:
     """Returns canned replies in order and records what it was asked.
 
-    `cost_microcents` defaults to exactly one cent per call so budget arithmetic
-    in tests is obvious by inspection.
+    A reply is either a plain string (the model answers) or a `ToolTurn` (the
+    model asks for tools). `cost_microcents` defaults to exactly one cent per
+    call so budget arithmetic in tests is obvious by inspection.
     """
 
-    replies: list[str]
+    replies: list[str | ToolTurn]
     calls: list[dict[str, Any]] = field(default_factory=list)
     tokens_in: int = 100
     tokens_out: int = 50
@@ -137,6 +146,7 @@ class FakeLLM:
         effort: str = "medium",
         json_mode: bool = False,
         timeout_seconds: float = 600.0,
+        tools: list[Any] | None = None,
         on_token: Any = None,
     ) -> RoutedResult:
         self.calls.append(
@@ -144,20 +154,35 @@ class FakeLLM:
                 "model": model,
                 "system": system,
                 "prompt": messages[0].content if messages else "",
+                "messages": messages,
                 "effort": effort,
                 "json_mode": json_mode,
+                "tools": [t.name for t in (tools or [])],
             }
         )
-        text = self.replies[min(len(self.calls) - 1, len(self.replies) - 1)]
-        if on_token is not None:
+        reply = self.replies[min(len(self.calls) - 1, len(self.replies) - 1)]
+
+        tool_calls: list[ToolCallRequest] = []
+        if isinstance(reply, ToolTurn):
+            text = reply.text
+            tool_calls = [
+                ToolCallRequest(id=f"call_{len(self.calls)}_{i}", name=name, arguments=args)
+                for i, (name, args) in enumerate(reply.calls)
+            ]
+        else:
+            text = reply
+
+        if text and on_token is not None:
             await on_token(text)
+
         return RoutedResult(
             result=LLMResult(
                 text=text,
                 model=model,
                 provider="fake",
                 usage=Usage(input_tokens=self.tokens_in, output_tokens=self.tokens_out),
-                stop_reason="end_turn",
+                stop_reason="tool_use" if tool_calls else "end_turn",
+                tool_calls=tool_calls,
             ),
             cost_microcents=self.cost_microcents,
             billed_to_platform=self.billed_to_platform,

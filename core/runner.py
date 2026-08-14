@@ -26,9 +26,9 @@ from core.llm.pricing import default_price_book, microcents_to_cents
 from core.llm.providers import LLMError, RefusalError
 from core.llm.registry import UnknownModelError
 from core.llm.router import LLMRouter
-from core.models import Agent, Artifact, Run, RunStep, Workflow
+from core.models import Agent, Artifact, Run, RunStep, ToolCallLog, Workflow
 from core.orchestration.budget import BudgetGuard, RunAborted
-from core.orchestration.engine import ArtifactRecord, Engine, StepRecord
+from core.orchestration.engine import ArtifactRecord, Engine, StepRecord, ToolCallRecord
 from core.orchestration.presets import WorkflowConfigError, get_preset
 from core.orchestration.state import AgentSpec, RunState
 
@@ -138,10 +138,32 @@ async def execute_run(run_id: str) -> None:
                     cost_microcents=record.cost_microcents,
                     latency_ms=record.latency_ms,
                     attempts=record.attempts,
+                    model_calls=record.model_calls,
+                    tool_calls=record.tool_calls,
                 )
             )
             # Flush per step so a crashed worker still leaves a partial trace
             # the user can inspect and bill against.
+            await session.flush()
+
+        async def persist_tool_call(record: ToolCallRecord) -> None:
+            session.add(
+                ToolCallLog(
+                    run_id=run_id,
+                    step_index=record.step_index,
+                    call_index=record.call_index,
+                    agent_id=record.agent_id,
+                    agent_name=record.agent_name,
+                    tool=record.tool,
+                    arguments=record.arguments,
+                    # Bound the stored copy: the full result already went to the
+                    # model, and a huge web page does not belong in the audit row.
+                    result=record.result[:20_000],
+                    is_error=record.is_error,
+                    latency_ms=record.latency_ms,
+                    meta=record.metadata,
+                )
+            )
             await session.flush()
 
         async def persist_artifact(record: ArtifactRecord) -> None:
@@ -171,11 +193,20 @@ async def execute_run(run_id: str) -> None:
             budget=budget,
             step_sink=persist_step,
             artifact_sink=persist_artifact,
+            tool_call_sink=persist_tool_call,
+            # A deployment-wide kill switch: turning tools off must take effect
+            # without editing every agent.
+            tool_resolver=None if settings.tools_enabled else (lambda _agent: []),
             markup=apply_markup,
             max_board_chars=settings.max_board_chars,
             step_timeout_seconds=float(settings.step_timeout_seconds),
+            max_tool_iterations=settings.max_tool_iterations,
+            max_tool_calls_per_turn=settings.max_tool_calls_per_turn,
         )
         state = RunState(user_input=run.input)
+        # Tools receive the run's own identity through the state, never a
+        # database session or a credential.
+        state.notes["org_id"] = run.org_id
 
         await emitter.emit(
             ev.RUN_START,

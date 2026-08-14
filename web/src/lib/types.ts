@@ -52,6 +52,37 @@ export interface TokenPair {
   expires_in: number;
 }
 
+export type SideEffect = "read_only" | "network" | "write";
+
+export interface ToolInfo {
+  name: string;
+  description: string;
+  side_effect: SideEffect;
+  available: boolean;
+  unavailable_reason: string | null;
+}
+
+export interface ToolCatalogue {
+  tools: ToolInfo[];
+  limits: {
+    max_iterations: number;
+    max_calls_per_turn: number;
+    tools_enabled: boolean;
+  };
+}
+
+export interface ToolCallRecord {
+  step_index: number;
+  call_index: number;
+  agent_name: string;
+  tool: string;
+  arguments: Record<string, unknown>;
+  result: string;
+  is_error: boolean;
+  latency_ms: number;
+  created_at: string;
+}
+
 export interface Agent {
   id: string;
   name: string;
@@ -60,7 +91,7 @@ export interface Agent {
   model: string;
   effort: Effort;
   max_tokens: number;
-  tools: unknown[];
+  tools: string[];
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -119,6 +150,8 @@ export interface RunStep {
   cost_microcents: number;
   latency_ms: number;
   attempts: number;
+  model_calls: number;
+  tool_calls: number;
   created_at: string;
 }
 
@@ -141,6 +174,7 @@ export interface ArtifactContent extends ArtifactSummary {
 export interface RunDetail extends Run {
   steps: RunStep[];
   artifacts: ArtifactSummary[];
+  tool_calls: ToolCallRecord[];
 }
 
 export interface ProviderKey {
@@ -194,9 +228,11 @@ export interface Member {
 /** Server-sent events emitted by a run. Mirrors core/events.py. */
 export type RunEvent =
   | { seq: number; type: "run.start"; run_id: string; ts: string; workflow_name: string; preset: string; key_mode: string; max_steps: number; max_cost_cents: number }
-  | { seq: number; type: "step.start"; run_id: string; ts: string; step: number; agent_id: string; agent_name: string; role: string; model: string; effort: string; instruction: string }
+  | { seq: number; type: "step.start"; run_id: string; ts: string; step: number; agent_id: string; agent_name: string; role: string; model: string; effort: string; instruction: string; tools: string[] }
   | { seq: number; type: "step.token"; run_id: string; ts: string; step: number; text: string }
   | { seq: number; type: "step.end"; run_id: string; ts: string; step: number; agent_name: string; role: string; model: string; provider: string; tokens_in: number; tokens_out: number; cached_tokens: number; cost_microcents: number; latency_ms: number; attempts: number; spent_microcents: number; steps_used: number; output: string }
+  | { seq: number; type: "tool.call"; run_id: string; ts: string; step: number; call: number; tool: string; agent_name: string; arguments: Record<string, unknown> }
+  | { seq: number; type: "tool.result"; run_id: string; ts: string; step: number; call: number; tool: string; agent_name: string; is_error: boolean; latency_ms: number; preview: string; metadata: Record<string, unknown> }
   | { seq: number; type: "artifact.written"; run_id: string; ts: string; step: number; path: string; version: number; kind: string; size_bytes: number; agent_name: string }
   | { seq: number; type: "budget.warning"; run_id: string; ts: string; spent_microcents: number; limit_microcents: number }
   | { seq: number; type: "budget.exceeded"; run_id: string; ts: string; reason: string }

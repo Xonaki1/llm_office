@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from core.llm.registry import EFFORT_LEVELS, get_spec
 from core.orchestration.presets import PRESET_NAMES
+from core.tools import known_names
 
 KeyMode = Literal["managed", "byok", "hybrid"]
 ProviderName = Literal["anthropic", "openai", "xai", "google", "openrouter"]
@@ -75,7 +76,20 @@ class AgentBase(BaseModel):
     model: Annotated[str, Field(min_length=1, max_length=80)]
     effort: Effort = "medium"
     max_tokens: int = Field(default=8000, ge=256, le=128_000)
-    tools: list[Any] = Field(default_factory=list)
+    tools: list[str] = Field(default_factory=list, max_length=16)
+
+    @field_validator("tools")
+    @classmethod
+    def _known_tools(cls, value: list[str]) -> list[str]:
+        # Reject an unknown tool at save time. Silently dropping it would leave
+        # an agent that looks configured but never gets the capability.
+        unknown = sorted(set(value) - known_names())
+        if unknown:
+            raise ValueError(
+                f"unknown tool(s): {', '.join(unknown)}. "
+                f"Available: {', '.join(sorted(known_names()))}"
+            )
+        return list(dict.fromkeys(value))
 
     @field_validator("model")
     @classmethod
@@ -104,8 +118,18 @@ class AgentUpdate(BaseModel):
     model: str | None = None
     effort: Effort | None = None
     max_tokens: int | None = Field(default=None, ge=256, le=128_000)
-    tools: list[Any] | None = None
+    tools: list[str] | None = Field(default=None, max_length=16)
     is_active: bool | None = None
+
+    @field_validator("tools")
+    @classmethod
+    def _known_tools(cls, value: list[str] | None) -> list[str] | None:
+        if value is None:
+            return None
+        unknown = sorted(set(value) - known_names())
+        if unknown:
+            raise ValueError(f"unknown tool(s): {', '.join(unknown)}")
+        return list(dict.fromkeys(value))
 
     @field_validator("model")
     @classmethod
@@ -123,7 +147,7 @@ class AgentOut(ORMModel):
     model: str
     effort: str
     max_tokens: int
-    tools: list[Any]
+    tools: list[str]
     is_active: bool
     created_at: datetime
     updated_at: datetime
@@ -202,6 +226,20 @@ class RunStepOut(ORMModel):
     cost_microcents: int
     latency_ms: int
     attempts: int
+    model_calls: int
+    tool_calls: int
+    created_at: datetime
+
+
+class ToolCallOut(ORMModel):
+    step_index: int
+    call_index: int
+    agent_name: str
+    tool: str
+    arguments: dict[str, Any]
+    result: str
+    is_error: bool
+    latency_ms: int
     created_at: datetime
 
 
@@ -243,6 +281,7 @@ class RunOut(ORMModel):
 class RunDetail(RunOut):
     steps: list[RunStepOut] = Field(default_factory=list)
     artifacts: list[ArtifactOut] = Field(default_factory=list)
+    tool_calls: list[ToolCallOut] = Field(default_factory=list)
 
 
 # --- provider keys -------------------------------------------------------

@@ -19,6 +19,7 @@ Browser ──▶ Caddy ──┬──▶ Next.js (UI, React Flow editor, live 
 - [Running locally](#running-locally)
 - [Deploying](#deploying)
 - [Topologies](#topologies)
+- [Tools](#tools)
 - [Models and providers](#models-and-providers)
 - [Key modes and BYOK](#key-modes-and-byok)
 - [Cost control and billing](#cost-control-and-billing)
@@ -47,11 +48,12 @@ core/
   config.py            settings; refuses to start in production without secrets
   crypto.py            envelope encryption + KEK rotation for BYOK keys
   security.py          Argon2id passwords, JWT access tokens, refresh rotation
-  models.py            full schema (13 tables)
+  models.py            full schema (14 tables)
   billing.py           append-only credit ledger
   ratelimit.py         Redis sliding window + concurrency slots (Lua)
   events.py            run event bus, token buffering, cancellation flag
   artifacts.py         extract labelled files out of agent output
+  tools/               tool contract, registry, artifact + network tools
   audit.py             security event log
   runner.py            DB <-> engine glue; owns the run's terminal state
   llm/
@@ -63,14 +65,14 @@ core/
   orchestration/
     state.py           shared board, artifact index, transcript compaction
     budget.py          step / cost / time ceilings and cancellation
-    engine.py          executes one agent turn
+    engine.py          executes one agent turn and its tool loop
     presets.py         pipeline, supervisor, debate, blackboard, swarm, custom
 api/                   routers, schemas, auth dependencies, middleware
 worker/                ARQ worker, cron sweeps, Prometheus metrics
 web/                   Next.js app
 migrations/            Alembic
 scripts/               seed, key rotation, superuser
-tests/                 150 tests
+tests/                 217 tests
 ```
 
 ## Running locally
@@ -172,6 +174,50 @@ Agents emit deliverables as labelled blocks, which become versioned artifacts:
 
 Model output is untrusted, so absolute paths and `..` traversal are rejected
 rather than cleaned.
+
+## Tools
+
+Agents hold an allowlist of tools. The engine runs the call loop; topologies
+know nothing about it, so every topology gets tools for free.
+
+| Tool | Side effect | What it does |
+|---|---|---|
+| `list_artifacts` | reads run state | What the run has produced so far |
+| `read_artifact` | reads run state | Read a file, optionally by line range |
+| `write_artifact` | writes | Create or replace a file, versioned |
+| `edit_artifact` | writes | Replace an exact, unique substring |
+| `web_fetch` | network | Fetch a URL as readable text |
+| `web_search` | network | Ranked results — only when a search provider is configured |
+
+Given write tools, an agent stops pasting whole files into its reply and works
+on them directly: read, targeted edit, write back. That is cheaper and avoids
+the failure where a model asked to "keep the rest" quietly drops half a file.
+
+**Loop safety.** Every model call in a tool loop is checked against the run's
+step, cost, time and cancellation guards *before* it is made. On the last
+permitted iteration the tools are withdrawn, which forces the model to answer
+with what it has rather than requesting a call it will not get. Parallel calls
+are capped per turn; read-only calls run concurrently, writes run in order so
+two edits to one file cannot interleave.
+
+**Failure is a result, not an exception.** A hallucinated tool name, a bad
+argument, a timeout or a crash all come back to the model as a readable error it
+can recover from — none of them kill the run.
+
+**Network safety.** `web_fetch` is the realistic SSRF surface, because a model
+can be talked into fetching a URL by anything it reads. The guard runs per
+redirect hop: http/https only, hostname resolved and every address checked
+against the private, loopback, link-local and reserved ranges, cloud-metadata
+hosts refused by name as well as by range, responses capped and time-bounded.
+Error messages never echo the resolved address, so a blind probe learns nothing.
+Optional per-deployment allow and deny lists layer on top.
+
+Every call is recorded in `tool_calls` with its arguments and result. Arguments
+are scrubbed on the way out — a model can be talked into putting a credential in
+one, and the audit trail must not become the leak.
+
+Turn the whole surface off with `TOOLS_ENABLED=false`, or just the network tools
+with `TOOLS_NETWORK_ENABLED=false`.
 
 ## Models and providers
 
@@ -286,11 +332,11 @@ database so a crashed worker cannot leak a slot permanently.
 cd web && npm run typecheck && npm run build
 ```
 
-150 tests cover the crypto envelope and rotation, artifact path safety, budget
-and cancellation guards, all six topologies and their validators, the credit
-ledger, auth and token rotation, tenant isolation, and end-to-end run execution
-against a fake provider. The suite runs on in-memory SQLite and fake Redis, so
-it needs no services.
+217 tests cover the crypto envelope and rotation, artifact path safety, budget
+and cancellation guards, all six topologies and their validators, the tool loop
+and its ceilings, the SSRF guard, the credit ledger, auth and token rotation,
+tenant isolation, and end-to-end run execution against a fake provider. The
+suite runs on in-memory SQLite and fake Redis, so it needs no services.
 
 ## Not built yet
 
@@ -299,6 +345,4 @@ it needs no services.
   this iteration.
 - **Email.** No verification, password reset or invitations — adding a member
   requires the account to exist already.
-- **Tool use.** Agents have a `tools` column, but the engine does not yet execute
-  tool calls; agents produce text and artifacts.
 - **Mobile app.** The API is shared and ready for it.
