@@ -1,0 +1,55 @@
+@import "tailwindcss";
+@import "@xyflow/react/dist/style.css";
+
+@theme {
+  --color-ink-50: #f6f7f9;
+  --color-ink-100: #eceef2;
+  --color-ink-200: #d5d9e2;
+  --color-ink-300: #b0b7c6;
+  --color-ink-400: #848fa6;
+  --color-ink-500: #66718a;
+  --color-ink-600: #515a70;
+  --color-ink-700: #424959;
+  --color-ink-800: #393e4b;
+  --color-ink-900: #1b1e26;
+  --color-ink-950: #111318;
+
+  --color-brand-400: #7c8cff;
+  --color-brand-500: #5b6cf5;
+  --color-brand-600: #4655d6;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-ink-950 text-ink-100 antialiased;
+}
+
+/* React Flow renders its own surface; align it with the app palette. */
+.react-flow {
+  --xy-background-color: var(--color-ink-950);
+}
+
+.react-flow__edge-path {
+  stroke: var(--color-ink-600);
+}
+
+.react-flow__handle {
+  background: var(--color-brand-500);
+  border-color: var(--color-ink-950);
+}
+
+/* Streaming output can be long; keep the caret visible without layout shift. */
+.stream-cursor::after {
+  content: "▍";
+  @apply text-brand-400;
+  animation: blink 1s step-start infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}

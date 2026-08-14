@@ -1,0 +1,115 @@
+# Deployment stack for a single VPS (Hetzner, Railway, Fly, ...).
+#
+#   cp .env.example .env      # fill in MASTER_KEYS, JWT_SECRET, provider keys
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Caddy terminates TLS and issues certificates automatically; point DOMAIN at
+# the host and it handles the rest.
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-office}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-office}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-office}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    # Not published: only the application network reaches the database.
+    expose:
+      - "5432"
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    expose:
+      - "6379"
+
+  api:
+    build: .
+    restart: unless-stopped
+    command: ["api"]
+    env_file: .env
+    environment:
+      # Exactly one service applies migrations, so replicas cannot race.
+      RUN_MIGRATIONS: "true"
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-office}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-office}
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health/ready"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  worker:
+    build: .
+    restart: unless-stopped
+    command: ["worker"]
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-office}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-office}
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      api:
+        condition: service_healthy
+    # Runs are long; give in-flight work time to record its terminal state.
+    stop_grace_period: 60s
+    deploy:
+      replicas: ${WORKER_REPLICAS:-2}
+
+  web:
+    build:
+      context: ./web
+      args:
+        NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:-https://localhost/api}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+    depends_on:
+      - api
+    expose:
+      - "3000"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddydata:/data
+      - caddyconfig:/config
+    depends_on:
+      - api
+      - web
+
+volumes:
+  pgdata:
+  redisdata:
+  caddydata:
+  caddyconfig:

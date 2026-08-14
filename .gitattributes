@@ -1,0 +1,6 @@
+# The entrypoint runs inside a Linux container; CRLF would break the shebang.
+*.sh text eol=lf
+Dockerfile text eol=lf
+docker-entrypoint.sh text eol=lf
+Caddyfile text eol=lf
+* text=auto

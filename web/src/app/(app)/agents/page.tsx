@@ -1,0 +1,318 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+
+import { api } from "@/lib/api";
+import { useAuth, useOrgId } from "@/lib/auth";
+import type { Agent, Effort, ModelInfo } from "@/lib/types";
+import { PROVIDER_LABELS } from "@/lib/types";
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  ErrorBanner,
+  Field,
+  Input,
+  Modal,
+  PageHeader,
+  Select,
+  Spinner,
+  Textarea,
+} from "@/components/ui";
+
+const EFFORTS: Effort[] = ["low", "medium", "high", "xhigh", "max"];
+
+interface Draft {
+  id?: string;
+  name: string;
+  role: string;
+  model: string;
+  effort: Effort;
+  max_tokens: number;
+  system_prompt: string;
+}
+
+const BLANK: Draft = {
+  name: "",
+  role: "",
+  model: "",
+  effort: "medium",
+  max_tokens: 8000,
+  system_prompt: "",
+};
+
+export default function AgentsPage() {
+  const orgId = useOrgId();
+  const { org } = useAuth();
+  const [agents, setAgents] = useState<Agent[] | null>(null);
+  const [models, setModels] = useState<ModelInfo[]>([]);
+  const [draft, setDraft] = useState<Draft | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    const [agentList, modelList] = await Promise.all([
+      api.get<Agent[]>(`/orgs/${orgId}/agents`),
+      api.get<ModelInfo[]>(`/orgs/${orgId}/models`),
+    ]);
+    setAgents(agentList);
+    setModels(modelList);
+  }, [orgId]);
+
+  useEffect(() => {
+    load().catch((err) => setError(err.message));
+  }, [load]);
+
+  const usableModels = models.filter((m) => m.available);
+  const selectedModel = models.find((m) => m.id === draft?.model);
+
+  async function save() {
+    if (!draft) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const payload = {
+        name: draft.name,
+        role: draft.role,
+        model: draft.model,
+        effort: draft.effort,
+        max_tokens: draft.max_tokens,
+        system_prompt: draft.system_prompt,
+      };
+      if (draft.id) {
+        await api.patch(`/orgs/${orgId}/agents/${draft.id}`, payload);
+      } else {
+        await api.post(`/orgs/${orgId}/agents`, { ...payload, tools: [] });
+      }
+      setDraft(null);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "could not save the agent");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function remove(agent: Agent) {
+    if (!window.confirm(`Deactivate ${agent.name}? Past runs keep their history.`)) return;
+    try {
+      await api.delete(`/orgs/${orgId}/agents/${agent.id}`);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "could not deactivate the agent");
+    }
+  }
+
+  return (
+    <>
+      <PageHeader
+        title="Agents"
+        description="Each agent has a role, a model and a system prompt. Mix vendors freely."
+        action={
+          <Button
+            onClick={() =>
+              setDraft({ ...BLANK, model: usableModels[0]?.id ?? "" })
+            }
+          >
+            New agent
+          </Button>
+        }
+      />
+
+      <div className="mb-4">
+        <ErrorBanner message={error} />
+      </div>
+
+      {agents === null ? (
+        <Spinner className="h-5 w-5 text-ink-500" />
+      ) : agents.length === 0 ? (
+        <EmptyState
+          title="No agents yet"
+          description="Create a few agents with distinct roles — a planner, a builder, a reviewer — then wire them into a workflow."
+          action={
+            <Button onClick={() => setDraft({ ...BLANK, model: usableModels[0]?.id ?? "" })}>
+              Create the first agent
+            </Button>
+          }
+        />
+      ) : (
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {agents.map((agent) => {
+            const model = models.find((m) => m.id === agent.model);
+            return (
+              <Card key={agent.id} className="flex flex-col">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="font-medium text-ink-50">{agent.name}</p>
+                    <p className="text-xs text-ink-500">{agent.role}</p>
+                  </div>
+                  <Badge tone={model?.available === false ? "danger" : "info"}>
+                    {PROVIDER_LABELS[model?.provider ?? ""] ?? model?.provider ?? "unknown"}
+                  </Badge>
+                </div>
+
+                <p className="mt-3 line-clamp-3 flex-1 text-xs text-ink-400">
+                  {agent.system_prompt || "No system prompt."}
+                </p>
+
+                <dl className="mt-3 grid grid-cols-3 gap-2 text-xs text-ink-500">
+                  <div>
+                    <dt className="text-ink-600">Model</dt>
+                    <dd className="truncate text-ink-300">{agent.model}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-ink-600">Effort</dt>
+                    <dd className="text-ink-300">
+                      {model?.supports_effort === false ? "n/a" : agent.effort}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-ink-600">Max tokens</dt>
+                    <dd className="text-ink-300">{agent.max_tokens.toLocaleString()}</dd>
+                  </div>
+                </dl>
+
+                <div className="mt-4 flex gap-2">
+                  <Button
+                    variant="secondary"
+                    className="flex-1"
+                    onClick={() =>
+                      setDraft({
+                        id: agent.id,
+                        name: agent.name,
+                        role: agent.role,
+                        model: agent.model,
+                        effort: agent.effort,
+                        max_tokens: agent.max_tokens,
+                        system_prompt: agent.system_prompt,
+                      })
+                    }
+                  >
+                    Edit
+                  </Button>
+                  <Button variant="ghost" onClick={() => remove(agent)}>
+                    Deactivate
+                  </Button>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      <Modal
+        open={draft !== null}
+        title={draft?.id ? "Edit agent" : "New agent"}
+        onClose={() => setDraft(null)}
+      >
+        {draft && (
+          <div className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Name">
+                <Input
+                  value={draft.name}
+                  onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                />
+              </Field>
+              <Field label="Role" hint="Shown to the other agents, so make it descriptive.">
+                <Input
+                  value={draft.role}
+                  onChange={(e) => setDraft({ ...draft, role: e.target.value })}
+                  placeholder="reviewer"
+                />
+              </Field>
+            </div>
+
+            <Field
+              label="Model"
+              hint={
+                org?.key_mode === "byok"
+                  ? "Only models you have supplied a key for are listed."
+                  : undefined
+              }
+            >
+              <Select
+                value={draft.model}
+                onChange={(e) => setDraft({ ...draft, model: e.target.value })}
+              >
+                {usableModels.length === 0 && <option value="">No models available</option>}
+                {usableModels.map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {model.display_name} — ${model.input_per_mtok}/${model.output_per_mtok} per Mtok
+                  </option>
+                ))}
+              </Select>
+            </Field>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field
+                label="Effort"
+                hint={
+                  selectedModel?.supports_effort === false
+                    ? "This model has no reasoning-depth control; the setting is ignored."
+                    : "Higher effort costs more and takes longer."
+                }
+              >
+                <Select
+                  value={draft.effort}
+                  disabled={selectedModel?.supports_effort === false}
+                  onChange={(e) => setDraft({ ...draft, effort: e.target.value as Effort })}
+                >
+                  {EFFORTS.map((level) => (
+                    <option key={level} value={level}>
+                      {level}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+
+              <Field
+                label="Max output tokens"
+                hint={
+                  selectedModel
+                    ? `Model ceiling: ${selectedModel.max_output_tokens.toLocaleString()}`
+                    : undefined
+                }
+              >
+                <Input
+                  type="number"
+                  min={256}
+                  max={selectedModel?.max_output_tokens ?? 128000}
+                  value={draft.max_tokens}
+                  onChange={(e) =>
+                    setDraft({ ...draft, max_tokens: Number(e.target.value) })
+                  }
+                />
+              </Field>
+            </div>
+
+            <Field
+              label="System prompt"
+              hint="Say what this agent should produce, not how to behave in general."
+            >
+              <Textarea
+                rows={8}
+                value={draft.system_prompt}
+                onChange={(e) => setDraft({ ...draft, system_prompt: e.target.value })}
+              />
+            </Field>
+
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" onClick={() => setDraft(null)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={save}
+                loading={saving}
+                disabled={!draft.name || !draft.role || !draft.model}
+              >
+                Save
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+    </>
+  );
+}

@@ -1,0 +1,30 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Local databases
+*.db
+*.sqlite3
+
+# Secrets — never commit these
+.env
+.env.local
+.env.*.local
+
+# Node / Next
+web/node_modules/
+web/.next/
+web/out/
+web/next-env.d.ts
+
+# Editors and OS
+.DS_Store
+.idea/
+.vscode/

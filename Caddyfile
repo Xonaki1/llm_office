@@ -1,0 +1,35 @@
+{$DOMAIN} {
+	encode zstd gzip
+
+	# The API is mounted under /api; the SSE endpoints need buffering disabled
+	# so tokens reach the browser as they are produced rather than at the end.
+	handle_path /api/* {
+		reverse_proxy api:8000 {
+			flush_interval -1
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Proto {scheme}
+		}
+	}
+
+	# Metrics and the worker's exporter stay off the public surface.
+	handle /metrics* {
+		respond "not found" 404
+	}
+
+	handle {
+		reverse_proxy web:3000
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}
