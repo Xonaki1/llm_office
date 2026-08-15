@@ -58,7 +58,11 @@ class Org(Base, TimestampMixin):
     credits_cents: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
-    __table_args__ = (CheckConstraint("key_mode in ('managed','byok','hybrid')"),)
+    __table_args__ = (
+        CheckConstraint(
+            "key_mode in ('managed','byok','hybrid')", name="orgs_key_mode_check"
+        ),
+    )
 
 
 class User(Base, TimestampMixin):
@@ -84,7 +88,9 @@ class Membership(Base, TimestampMixin):
     __tablename__ = "memberships"
     __table_args__ = (
         UniqueConstraint("user_id", "org_id", name="uq_membership_user_org"),
-        CheckConstraint("role in ('owner','admin','member','viewer')"),
+        CheckConstraint(
+            "role in ('owner','admin','member','viewer')", name="memberships_role_check"
+        ),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
@@ -130,7 +136,10 @@ class ApiKey(Base, TimestampMixin):
     __tablename__ = "api_keys"
     __table_args__ = (
         UniqueConstraint("org_id", "provider", name="uq_api_key_org_provider"),
-        CheckConstraint("provider in ('anthropic','openai','xai','google','openrouter')"),
+        CheckConstraint(
+            "provider in ('anthropic','openai','xai','google','openrouter')",
+            name="api_keys_provider_check",
+        ),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
@@ -154,7 +163,9 @@ class Agent(Base, TimestampMixin):
     __tablename__ = "agents"
     __table_args__ = (
         Index("ix_agents_org_active", "org_id", "is_active"),
-        CheckConstraint("effort in ('low','medium','high','xhigh','max')"),
+        CheckConstraint(
+            "effort in ('low','medium','high','xhigh','max')", name="agents_effort_check"
+        ),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
@@ -201,7 +212,8 @@ class Run(Base, TimestampMixin):
         Index("ix_runs_status", "status"),
         CheckConstraint(
             "status in ('queued','running','succeeded','failed','cancelled',"
-            "'budget_exceeded','timed_out')"
+            "'budget_exceeded','timed_out')",
+            name="runs_status_check",
         ),
     )
 
@@ -361,7 +373,10 @@ class CreditLedger(Base, TimestampMixin):
     __table_args__ = (
         Index("ix_ledger_org_created", "org_id", "created_at"),
         UniqueConstraint("org_id", "idempotency_key", name="uq_ledger_idempotency"),
-        CheckConstraint("kind in ('topup','debit','refund','bonus','adjustment')"),
+        CheckConstraint(
+            "kind in ('topup','debit','refund','bonus','adjustment')",
+            name="credit_ledger_kind_check",
+        ),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
