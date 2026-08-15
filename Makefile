@@ -6,8 +6,10 @@ SHELL := /bin/bash
 VENV ?= .venv
 ifeq ($(OS),Windows_NT)
 	PY := $(VENV)/Scripts/python.exe
+	PYTEST := $(VENV)/Scripts/pytest.exe
 else
 	PY := $(VENV)/bin/python
+	PYTEST := $(VENV)/bin/pytest
 endif
 
 .PHONY: help
@@ -56,12 +58,15 @@ fmt: ## Apply the fixes ruff can make itself
 	$(PY) -m ruff check . --fix
 
 .PHONY: test
+# The console script, not `$(PY) -m pytest`, because that is what CI runs and
+# the two do not agree on sys.path: `python -m` prepends the working directory,
+# which silently satisfies imports that fail under a bare `pytest`.
 test: ## Run the test suite
-	$(PY) -m pytest -q
+	$(PYTEST) -q
 
 .PHONY: cov
 cov: ## Run the test suite with coverage
-	$(PY) -m pytest -q --cov=core --cov=api --cov=worker --cov-report=term-missing
+	$(PYTEST) -q --cov=core --cov=api --cov=worker --cov-report=term-missing
 
 .PHONY: typecheck-web
 typecheck-web: ## Typecheck and build the frontend
