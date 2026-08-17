@@ -11,6 +11,7 @@ import {
 } from "@xyflow/react";
 
 import type { Agent, Preset } from "@/lib/types";
+import { useT } from "@/lib/i18n";
 import { Button, Card, Field, Input, Select } from "@/components/ui";
 
 export type Graph = Record<string, unknown>;
@@ -254,9 +255,11 @@ function AgentPicker({
   agents: Agent[];
   onChange: (id: string) => void;
 }) {
+  const t = useT();
+
   return (
     <Select value={typeof value === "string" ? value : ""} onChange={(e) => onChange(e.target.value)}>
-      <option value="">(unassigned)</option>
+      <option value="">{t("workflows.unassigned")}</option>
       {agents.map((agent) => (
         <option key={agent.id} value={agent.id}>
           {agent.name} — {agent.role}
@@ -277,6 +280,8 @@ function AgentList({
   onChange: (next: string[]) => void;
   label: string;
 }) {
+  const t = useT();
+
   return (
     <Field label={listLabel}>
       <div className="space-y-2">
@@ -290,7 +295,7 @@ function AgentList({
             <Button
               variant="ghost"
               onClick={() => onChange(ids.filter((_, i) => i !== index))}
-              aria-label="Remove"
+              aria-label={t("common.remove")}
             >
               ✕
             </Button>
@@ -301,7 +306,7 @@ function AgentList({
           onClick={() => onChange([...ids, agents[0]?.id ?? ""])}
           disabled={agents.length === 0}
         >
-          Add
+          {t("common.add")}
         </Button>
       </div>
     </Field>
@@ -347,6 +352,7 @@ export function GraphForm({
   agents: Agent[];
   onChange: (graph: Graph) => void;
 }) {
+  const t = useT();
   const patch = useCallback(
     (changes: Graph) => onChange({ ...graph, ...changes }),
     [graph, onChange],
@@ -357,7 +363,7 @@ export function GraphForm({
   return (
     <div className="space-y-4">
       {preset === "pipeline" && (
-        <Field label="Order of work">
+        <Field label={t("workflows.order")}>
           <div className="space-y-2">
             {pipelineNodes.map((node, index) => (
               <div key={index} className="flex gap-2">
@@ -382,7 +388,7 @@ export function GraphForm({
                     next[index - 1] = moved;
                     patch({ nodes: next });
                   }}
-                  aria-label="Move up"
+                  aria-label={t("workflows.moveUp")}
                 >
                   ↑
                 </Button>
@@ -391,7 +397,7 @@ export function GraphForm({
                   onClick={() =>
                     patch({ nodes: pipelineNodes.filter((_, i) => i !== index) })
                   }
-                  aria-label="Remove"
+                  aria-label={t("common.remove")}
                 >
                   ✕
                 </Button>
@@ -403,7 +409,7 @@ export function GraphForm({
                 patch({ nodes: [...pipelineNodes, { agent_id: agents[0]?.id ?? "" }] })
               }
             >
-              Add step
+              {t("workflows.addStep")}
             </Button>
           </div>
         </Field>
@@ -411,7 +417,7 @@ export function GraphForm({
 
       {preset === "supervisor" && (
         <>
-          <Field label="Supervisor">
+          <Field label={t("workflows.supervisor")}>
             <AgentPicker
               value={graph.supervisor_agent_id}
               agents={agents}
@@ -419,17 +425,17 @@ export function GraphForm({
             />
           </Field>
           <AgentList
-            label="Workers"
+            label={t("workflows.workers")}
             ids={(graph.workers as string[]) ?? []}
             agents={agents}
             onChange={(workers) => patch({ workers })}
           />
           <NumberField
-            label="Max rounds"
+            label={t("workflows.maxRounds")}
             value={graph.max_rounds}
             min={1}
             max={30}
-            hint="How many times the supervisor may delegate before it must answer."
+            hint={t("workflows.maxRoundsHint")}
             onChange={(max_rounds) => patch({ max_rounds })}
           />
         </>
@@ -438,12 +444,12 @@ export function GraphForm({
       {preset === "debate" && (
         <>
           <AgentList
-            label="Debaters"
+            label={t("workflows.debaters")}
             ids={(graph.debaters as string[]) ?? []}
             agents={agents}
             onChange={(debaters) => patch({ debaters })}
           />
-          <Field label="Judge">
+          <Field label={t("workflows.judge")}>
             <AgentPicker
               value={graph.judge_agent_id}
               agents={agents}
@@ -451,11 +457,11 @@ export function GraphForm({
             />
           </Field>
           <NumberField
-            label="Rounds"
+            label={t("workflows.rounds")}
             value={graph.rounds}
             min={1}
             max={6}
-            hint="Cost is roughly debaters × rounds + 1 steps."
+            hint={t("workflows.roundsHint")}
             onChange={(rounds) => patch({ rounds })}
           />
         </>
@@ -463,7 +469,7 @@ export function GraphForm({
 
       {preset === "blackboard" && (
         <>
-          <Field label="Planner">
+          <Field label={t("workflows.planner")}>
             <AgentPicker
               value={graph.planner_agent_id}
               agents={agents}
@@ -471,13 +477,13 @@ export function GraphForm({
             />
           </Field>
           <AgentList
-            label="Workers"
+            label={t("workflows.workers")}
             ids={(graph.workers as string[]) ?? []}
             agents={agents}
             onChange={(workers) => patch({ workers })}
           />
           <NumberField
-            label="Max tasks"
+            label={t("workflows.maxTasks")}
             value={graph.max_tasks}
             min={1}
             max={25}
@@ -488,7 +494,7 @@ export function GraphForm({
 
       {preset === "swarm" && (
         <>
-          <Field label="Entry agent">
+          <Field label={t("workflows.entry")}>
             <AgentPicker
               value={graph.entry_agent_id}
               agents={agents}
@@ -496,13 +502,13 @@ export function GraphForm({
             />
           </Field>
           <AgentList
-            label="Roster"
+            label={t("workflows.roster")}
             ids={(graph.agents as string[]) ?? []}
             agents={agents}
             onChange={(roster) => patch({ agents: roster })}
           />
           <NumberField
-            label="Max hand-offs"
+            label={t("workflows.maxHops")}
             value={graph.max_hops}
             min={1}
             max={30}
@@ -515,22 +521,19 @@ export function GraphForm({
 
       <Card className="space-y-4">
         <p className="text-xs font-medium uppercase tracking-wide text-ink-400">
-          Run ceiling
+          {t("workflows.limits")}
         </p>
-        <p className="text-xs text-ink-500">
-          Hard limits for every run of this workflow. The platform maximum still applies on
-          top, so these can only lower the ceiling.
-        </p>
+        <p className="text-xs text-ink-500">{t("workflows.limitsHint")}</p>
         <div className="grid gap-4 sm:grid-cols-2">
           <NumberField
-            label="Max steps"
+            label={t("workflows.maxSteps")}
             value={graph.max_steps}
             min={1}
             max={200}
             onChange={(max_steps) => patch({ max_steps })}
           />
           <NumberField
-            label="Max cost (cents)"
+            label={t("workflows.maxCost")}
             value={graph.max_cost_cents}
             min={1}
             max={100000}
@@ -551,6 +554,7 @@ function CustomGraphForm({
   agents: Agent[];
   patch: (changes: Graph) => void;
 }) {
+  const t = useT();
   const nodes =
     (graph.nodes as Array<{ id: string; type?: string; agent_id?: string }>) ?? [];
   const edges = (graph.edges as Array<{ from: string; to: string }>) ?? [];
@@ -565,7 +569,7 @@ function CustomGraphForm({
 
   return (
     <>
-      <Field label="Nodes" hint="A router node picks which outgoing edge to follow.">
+      <Field label={t("workflows.nodes")} hint={t("workflows.nodesHint")}>
         <div className="space-y-2">
           {nodes.map((node, index) => (
             <div key={node.id} className="rounded-md border border-ink-800 p-2">
@@ -581,7 +585,7 @@ function CustomGraphForm({
                       edges: edges.filter((e) => e.from !== node.id && e.to !== node.id),
                     })
                   }
-                  aria-label="Remove node"
+                  aria-label={t("workflows.removeNode")}
                 >
                   ✕
                 </Button>
@@ -599,16 +603,16 @@ function CustomGraphForm({
           ))}
           <div className="flex gap-2">
             <Button variant="secondary" onClick={() => addNode("agent")}>
-              Add agent node
+              {t("workflows.addAgent")}
             </Button>
             <Button variant="secondary" onClick={() => addNode("router")}>
-              Add router node
+              {t("workflows.addRouter")}
             </Button>
           </div>
         </div>
       </Field>
 
-      <Field label="Start node">
+      <Field label={t("workflows.startNode")}>
         <Select
           value={(graph.start as string) ?? ""}
           onChange={(e) => patch({ start: e.target.value })}
@@ -621,7 +625,7 @@ function CustomGraphForm({
         </Select>
       </Field>
 
-      <Field label="Edges">
+      <Field label={t("workflows.edges")}>
         <div className="space-y-2">
           {edges.map((edge, index) => (
             <div key={index} className="flex items-center gap-2">
@@ -662,7 +666,7 @@ function CustomGraphForm({
               <Button
                 variant="ghost"
                 onClick={() => patch({ edges: edges.filter((_, i) => i !== index) })}
-                aria-label="Remove edge"
+                aria-label={t("workflows.removeEdge")}
               >
                 ✕
               </Button>
@@ -680,7 +684,7 @@ function CustomGraphForm({
               })
             }
           >
-            Add edge
+            {t("workflows.addEdge")}
           </Button>
         </div>
       </Field>

@@ -4,15 +4,17 @@ import Link from "next/link";
 import { useState, type FormEvent } from "react";
 
 import { useAuth } from "@/lib/auth";
+import { useT } from "@/lib/i18n";
 import { Button, ErrorBanner, Field, Input } from "@/components/ui";
 
 const MIN_PASSWORD_LENGTH = 12;
 
 export default function RegisterPage() {
+  const t = useT();
   const { register } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [orgName, setOrgName] = useState("My Workspace");
+  const [orgName, setOrgName] = useState(() => t("auth.defaultOrgName"));
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -25,7 +27,7 @@ export default function RegisterPage() {
     try {
       await register(email, password, orgName);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "registration failed");
+      setError(err instanceof Error ? err.message : t("auth.signUpFailed"));
     } finally {
       setSubmitting(false);
     }
@@ -38,15 +40,13 @@ export default function RegisterPage() {
         className="w-full max-w-sm space-y-4 rounded-lg border border-ink-800 bg-ink-900/60 p-6"
       >
         <div>
-          <h1 className="text-lg font-semibold text-ink-50">Create an account</h1>
-          <p className="mt-1 text-sm text-ink-500">
-            You get a workspace and starter credits.
-          </p>
+          <h1 className="text-lg font-semibold text-ink-50">{t("auth.signUp")}</h1>
+          <p className="mt-1 text-sm text-ink-500">{t("auth.signUpSubtitle")}</p>
         </div>
 
         <ErrorBanner message={error} />
 
-        <Field label="Email">
+        <Field label={t("auth.email")}>
           <Input
             type="email"
             autoComplete="email"
@@ -57,8 +57,8 @@ export default function RegisterPage() {
         </Field>
 
         <Field
-          label="Password"
-          hint={`At least ${MIN_PASSWORD_LENGTH} characters. Length matters more than symbols.`}
+          label={t("auth.password")}
+          hint={t("auth.passwordHint", { min: MIN_PASSWORD_LENGTH })}
         >
           <Input
             type="password"
@@ -70,18 +70,17 @@ export default function RegisterPage() {
           />
         </Field>
 
-        <Field label="Workspace name">
+        <Field label={t("auth.orgName")}>
           <Input required value={orgName} onChange={(e) => setOrgName(e.target.value)} />
         </Field>
 
         <Button type="submit" loading={submitting} disabled={tooShort} className="w-full">
-          Create account
+          {t("auth.signUpAction")}
         </Button>
 
         <p className="text-center text-sm text-ink-500">
-          Already registered?{" "}
           <Link href="/login" className="text-brand-400 hover:underline">
-            Sign in
+            {t("auth.toSignIn")}
           </Link>
         </p>
       </form>

@@ -61,7 +61,14 @@ export interface RunStreamState {
  * replays from `Last-Event-ID`, so a dropped connection reconnects without
  * duplicating or losing steps.
  */
-export function useRunStream(orgId: string, runId: string): RunStreamState {
+export function useRunStream(
+  orgId: string,
+  runId: string,
+  options: {
+    /** Raw events, in arrival order — what the office animation feeds on. */
+    onEvent?: (event: RunEvent) => void;
+  } = {},
+): RunStreamState {
   const [run, setRun] = useState<RunDetail | null>(null);
   const [steps, setSteps] = useState<LiveStep[]>([]);
   const [artifacts, setArtifacts] = useState<LiveArtifact[]>([]);
@@ -74,6 +81,14 @@ export function useRunStream(orgId: string, runId: string): RunStreamState {
   const lastSeq = useRef(0);
   const finished = useRef(false);
 
+  // Held in a ref so a caller can pass an inline closure without tearing down
+  // and reopening the stream on every render. The stream itself only opens in
+  // an effect, so the ref is always current by the time an event can arrive.
+  const onEvent = useRef(options.onEvent);
+  useEffect(() => {
+    onEvent.current = options.onEvent;
+  });
+
   const reload = useCallback(async () => {
     const detail = await api.get<RunDetail>(`/orgs/${orgId}/runs/${runId}`);
     setRun(detail);
@@ -83,6 +98,7 @@ export function useRunStream(orgId: string, runId: string): RunStreamState {
   const handleEvent = useCallback((raw: unknown) => {
     const event = raw as RunEvent;
     if (typeof event?.seq === "number") lastSeq.current = Math.max(lastSeq.current, event.seq);
+    onEvent.current?.(event);
 
     switch (event.type) {
       case "run.start":
@@ -166,7 +182,8 @@ export function useRunStream(orgId: string, runId: string): RunStreamState {
         break;
 
       case "step.end":
-        setSpent(event.spent_microcents);
+        // A refused step carries no metrics, so nothing here may be assumed.
+        if (typeof event.spent_microcents === "number") setSpent(event.spent_microcents);
         setSteps((current) =>
           current.map((step) =>
             step.index === event.step

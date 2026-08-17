@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { api } from "@/lib/api";
 import { useOrgId } from "@/lib/auth";
+import { useT } from "@/lib/i18n";
 import { formatCents, formatRelative, formatTokens } from "@/lib/format";
 import type { Run, Workflow } from "@/lib/types";
 import { TERMINAL_STATUSES } from "@/lib/types";
@@ -22,6 +23,7 @@ const POLL_INTERVAL_MS = 4000;
 
 export default function RunsPage() {
   const orgId = useOrgId();
+  const t = useT();
   const [runs, setRuns] = useState<Run[] | null>(null);
   const [workflows, setWorkflows] = useState<Record<string, Workflow>>({});
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +51,7 @@ export default function RunsPage() {
         const active = list.some((run) => !TERMINAL_STATUSES.includes(run.status));
         if (active) timer = setTimeout(tick, POLL_INTERVAL_MS);
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : "could not load runs");
+        if (!cancelled) setError(err instanceof Error ? err.message : t("common.error"));
       }
     }
 
@@ -58,16 +60,16 @@ export default function RunsPage() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [load]);
+  }, [load, t]);
 
   return (
     <>
       <PageHeader
-        title="Runs"
-        description="Every execution, with what it cost and what it produced."
+        title={t("tasks.title")}
+        description={t("tasks.subtitle")}
         action={
-          <Link href="/workflows">
-            <Button>Start a run</Button>
+          <Link href="/office">
+            <Button>{t("tasks.newTask")}</Button>
           </Link>
         }
       />
@@ -80,11 +82,11 @@ export default function RunsPage() {
         <Spinner className="h-5 w-5 text-ink-500" />
       ) : runs.length === 0 ? (
         <EmptyState
-          title="No runs yet"
-          description="Open a workflow and give the team a task."
+          title={t("tasks.empty")}
+          description={t("tasks.emptyHint")}
           action={
-            <Link href="/workflows">
-              <Button>Go to workflows</Button>
+            <Link href="/office">
+              <Button>{t("tasks.goToOffice")}</Button>
             </Link>
           }
         />
@@ -93,13 +95,13 @@ export default function RunsPage() {
           <table className="w-full text-sm">
             <thead className="bg-ink-900/60 text-left text-xs uppercase tracking-wide text-ink-500">
               <tr>
-                <th className="px-4 py-2 font-medium">Task</th>
-                <th className="px-4 py-2 font-medium">Workflow</th>
-                <th className="px-4 py-2 font-medium">Status</th>
-                <th className="px-4 py-2 text-right font-medium">Steps</th>
-                <th className="px-4 py-2 text-right font-medium">Tokens</th>
-                <th className="px-4 py-2 text-right font-medium">Cost</th>
-                <th className="px-4 py-2 text-right font-medium">Started</th>
+                <th className="px-4 py-2 font-medium">{t("tasks.columnTask")}</th>
+                <th className="px-4 py-2 font-medium">{t("tasks.columnTeam")}</th>
+                <th className="px-4 py-2 font-medium">{t("tasks.columnStatus")}</th>
+                <th className="px-4 py-2 text-right font-medium">{t("tasks.columnSteps")}</th>
+                <th className="px-4 py-2 text-right font-medium">{t("tasks.columnTokens")}</th>
+                <th className="px-4 py-2 text-right font-medium">{t("tasks.columnCost")}</th>
+                <th className="px-4 py-2 text-right font-medium">{t("tasks.columnStarted")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-ink-800">
@@ -111,10 +113,10 @@ export default function RunsPage() {
                     </Link>
                   </td>
                   <td className="px-4 py-2 text-ink-400">
-                    {workflows[run.workflow_id]?.name ?? "—"}
+                    {workflows[run.workflow_id]?.name ?? t("common.none")}
                   </td>
                   <td className="px-4 py-2">
-                    <Badge tone={statusTone(run.status)}>{run.status.replace("_", " ")}</Badge>
+                    <Badge tone={statusTone(run.status)}>{t(`status.${run.status}`)}</Badge>
                   </td>
                   <td className="px-4 py-2 text-right text-ink-400">
                     {run.steps_used}

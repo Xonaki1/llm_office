@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 
 import { api } from "@/lib/api";
 import { useAuth, useOrgId } from "@/lib/auth";
+import { useT } from "@/lib/i18n";
 import { useLoader } from "@/lib/use-loader";
 import type { Agent, Effort, ModelInfo, ToolCatalogue, ToolInfo } from "@/lib/types";
 import { PROVIDER_LABELS } from "@/lib/types";
@@ -46,16 +47,15 @@ const BLANK: Draft = {
   tools: [],
 };
 
-const SIDE_EFFECTS: Record<
-  string,
-  { label: string; tone: "neutral" | "warning" | "danger" }
-> = {
-  read_only: { label: "reads run state", tone: "neutral" },
-  write: { label: "writes files", tone: "warning" },
-  network: { label: "reaches the internet", tone: "danger" },
+/** Only the colour lives here; the wording comes from `team.sideEffect.*`. */
+const SIDE_EFFECT_TONES: Record<string, "neutral" | "warning" | "danger"> = {
+  read_only: "neutral",
+  write: "warning",
+  network: "danger",
 };
 
 export default function AgentsPage() {
+  const t = useT();
   const orgId = useOrgId();
   const { org } = useAuth();
   const [agents, setAgents] = useState<Agent[] | null>(null);
@@ -102,34 +102,34 @@ export default function AgentsPage() {
       setDraft(null);
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "could not save the agent");
+      setError(err instanceof Error ? err.message : t("common.error"));
     } finally {
       setSaving(false);
     }
   }
 
   async function remove(agent: Agent) {
-    if (!window.confirm(`Deactivate ${agent.name}? Past runs keep their history.`)) return;
+    if (!window.confirm(t("team.dismissConfirm", { name: agent.name }))) return;
     try {
       await api.delete(`/orgs/${orgId}/agents/${agent.id}`);
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "could not deactivate the agent");
+      setError(err instanceof Error ? err.message : t("common.error"));
     }
   }
 
   return (
     <>
       <PageHeader
-        title="Agents"
-        description="Each agent has a role, a model and a system prompt. Mix vendors freely."
+        title={t("team.title")}
+        description={t("team.subtitle")}
         action={
           <Button
             onClick={() =>
               setDraft({ ...BLANK, model: usableModels[0]?.id ?? "" })
             }
           >
-            New agent
+            {t("team.newAgent")}
           </Button>
         }
       />
@@ -142,11 +142,11 @@ export default function AgentsPage() {
         <Spinner className="h-5 w-5 text-ink-500" />
       ) : agents.length === 0 ? (
         <EmptyState
-          title="No agents yet"
-          description="Create a few agents with distinct roles — a planner, a builder, a reviewer — then wire them into a workflow."
+          title={t("team.empty")}
+          description={t("team.emptyHint")}
           action={
             <Button onClick={() => setDraft({ ...BLANK, model: usableModels[0]?.id ?? "" })}>
-              Create the first agent
+              {t("team.hireFirst")}
             </Button>
           }
         />
@@ -162,12 +162,12 @@ export default function AgentsPage() {
                     <p className="text-xs text-ink-500">{agent.role}</p>
                   </div>
                   <Badge tone={model?.available === false ? "danger" : "info"}>
-                    {PROVIDER_LABELS[model?.provider ?? ""] ?? model?.provider ?? "unknown"}
+                    {PROVIDER_LABELS[model?.provider ?? ""] ?? model?.provider ?? t("common.none")}
                   </Badge>
                 </div>
 
                 <p className="mt-3 line-clamp-3 flex-1 text-xs text-ink-400">
-                  {agent.system_prompt || "No system prompt."}
+                  {agent.system_prompt || t("team.noPrompt")}
                 </p>
 
                 {agent.tools.length > 0 && (
@@ -185,17 +185,19 @@ export default function AgentsPage() {
 
                 <dl className="mt-3 grid grid-cols-3 gap-2 text-xs text-ink-500">
                   <div>
-                    <dt className="text-ink-600">Model</dt>
+                    <dt className="text-ink-600">{t("team.model")}</dt>
                     <dd className="truncate text-ink-300">{agent.model}</dd>
                   </div>
                   <div>
-                    <dt className="text-ink-600">Effort</dt>
+                    <dt className="text-ink-600">{t("team.effort")}</dt>
                     <dd className="text-ink-300">
-                      {model?.supports_effort === false ? "n/a" : agent.effort}
+                      {model?.supports_effort === false
+                        ? t("common.none")
+                        : t(`team.effortLevel.${agent.effort}`)}
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-ink-600">Max tokens</dt>
+                    <dt className="text-ink-600">{t("team.maxTokens")}</dt>
                     <dd className="text-ink-300">{agent.max_tokens.toLocaleString()}</dd>
                   </div>
                 </dl>
@@ -217,10 +219,10 @@ export default function AgentsPage() {
                       })
                     }
                   >
-                    Edit
+                    {t("common.edit")}
                   </Button>
                   <Button variant="ghost" onClick={() => remove(agent)}>
-                    Deactivate
+                    {t("team.dismiss")}
                   </Button>
                 </div>
               </Card>
@@ -231,43 +233,40 @@ export default function AgentsPage() {
 
       <Modal
         open={draft !== null}
-        title={draft?.id ? "Edit agent" : "New agent"}
+        title={draft?.id ? t("team.editAgent") : t("team.newAgent")}
         onClose={() => setDraft(null)}
       >
         {draft && (
           <div className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Name">
+              <Field label={t("team.name")}>
                 <Input
                   value={draft.name}
                   onChange={(e) => setDraft({ ...draft, name: e.target.value })}
                 />
               </Field>
-              <Field label="Role" hint="Shown to the other agents, so make it descriptive.">
+              <Field label={t("team.role")} hint={t("team.roleHint")}>
                 <Input
                   value={draft.role}
                   onChange={(e) => setDraft({ ...draft, role: e.target.value })}
-                  placeholder="reviewer"
+                  placeholder={t("team.rolePlaceholder")}
                 />
               </Field>
             </div>
 
             <Field
-              label="Model"
-              hint={
-                org?.key_mode === "byok"
-                  ? "Only models you have supplied a key for are listed."
-                  : undefined
-              }
+              label={t("team.model")}
+              hint={org?.key_mode === "byok" ? t("team.modelHint") : undefined}
             >
               <Select
                 value={draft.model}
                 onChange={(e) => setDraft({ ...draft, model: e.target.value })}
               >
-                {usableModels.length === 0 && <option value="">No models available</option>}
+                {usableModels.length === 0 && <option value="">{t("team.noModels")}</option>}
                 {usableModels.map((model) => (
                   <option key={model.id} value={model.id}>
-                    {model.display_name} — ${model.input_per_mtok}/${model.output_per_mtok} per Mtok
+                    {model.display_name} — ${model.input_per_mtok}/${model.output_per_mtok}{" "}
+                    {t("team.perMtok")}
                   </option>
                 ))}
               </Select>
@@ -275,11 +274,11 @@ export default function AgentsPage() {
 
             <div className="grid gap-4 sm:grid-cols-2">
               <Field
-                label="Effort"
+                label={t("team.effort")}
                 hint={
                   selectedModel?.supports_effort === false
-                    ? "This model has no reasoning-depth control; the setting is ignored."
-                    : "Higher effort costs more and takes longer."
+                    ? t("team.effortUnsupported")
+                    : t("team.effortHint")
                 }
               >
                 <Select
@@ -289,17 +288,19 @@ export default function AgentsPage() {
                 >
                   {EFFORTS.map((level) => (
                     <option key={level} value={level}>
-                      {level}
+                      {t(`team.effortLevel.${level}`)}
                     </option>
                   ))}
                 </Select>
               </Field>
 
               <Field
-                label="Max output tokens"
+                label={t("team.maxTokens")}
                 hint={
                   selectedModel
-                    ? `Model ceiling: ${selectedModel.max_output_tokens.toLocaleString()}`
+                    ? t("team.modelCeiling", {
+                        value: selectedModel.max_output_tokens.toLocaleString(),
+                      })
                     : undefined
                 }
               >
@@ -316,16 +317,16 @@ export default function AgentsPage() {
             </div>
 
             <Field
-              label="Tools"
+              label={t("team.tools")}
               hint={
                 toolCatalogue?.limits.tools_enabled
-                  ? `Up to ${toolCatalogue.limits.max_iterations} tool round trips per turn. Each one is another billed model call.`
-                  : "Tools are disabled on this deployment."
+                  ? t("team.toolsHint", { count: toolCatalogue.limits.max_iterations })
+                  : t("team.toolsDisabled")
               }
             >
               <div className="space-y-1.5">
                 {(toolCatalogue?.tools ?? []).map((tool: ToolInfo) => {
-                  const meta = SIDE_EFFECTS[tool.side_effect];
+                  const tone = SIDE_EFFECT_TONES[tool.side_effect] ?? "neutral";
                   return (
                     <label
                       key={tool.name}
@@ -351,7 +352,7 @@ export default function AgentsPage() {
                       <span className="min-w-0">
                         <span className="flex flex-wrap items-center gap-2">
                           <span className="font-mono text-xs text-ink-100">{tool.name}</span>
-                          <Badge tone={meta?.tone ?? "neutral"}>{meta?.label}</Badge>
+                          <Badge tone={tone}>{t(`team.sideEffect.${tool.side_effect}`)}</Badge>
                         </span>
                         <span className="mt-0.5 block text-xs text-ink-500">
                           {tool.available
@@ -365,10 +366,7 @@ export default function AgentsPage() {
               </div>
             </Field>
 
-            <Field
-              label="System prompt"
-              hint="Say what this agent should produce, not how to behave in general."
-            >
+            <Field label={t("team.prompt")} hint={t("team.promptHint")}>
               <Textarea
                 rows={8}
                 value={draft.system_prompt}
@@ -378,14 +376,14 @@ export default function AgentsPage() {
 
             <div className="flex justify-end gap-2">
               <Button variant="ghost" onClick={() => setDraft(null)}>
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button
                 onClick={save}
                 loading={saving}
                 disabled={!draft.name || !draft.role || !draft.model}
               >
-                Save
+                {t("common.save")}
               </Button>
             </div>
           </div>

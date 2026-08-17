@@ -5,6 +5,8 @@ import { useCallback, useState } from "react";
 
 import { api } from "@/lib/api";
 import { useOrgId } from "@/lib/auth";
+import { formatCents } from "@/lib/format";
+import { useT } from "@/lib/i18n";
 import { useLoader } from "@/lib/use-loader";
 import type { Agent, PresetInfo, Run, Workflow } from "@/lib/types";
 import {
@@ -22,6 +24,7 @@ import {
 import { GraphForm, GraphPreview, type Graph } from "@/components/graph-editor";
 
 export default function WorkflowDetailPage() {
+  const t = useT();
   const orgId = useOrgId();
   const router = useRouter();
   const params = useParams<{ id: string }>();
@@ -69,7 +72,7 @@ export default function WorkflowDetailPage() {
     } catch (err) {
       // The server validates the topology, so an invalid graph is reported
       // here rather than failing later at run time.
-      setError(err instanceof Error ? err.message : "could not save the workflow");
+      setError(err instanceof Error ? err.message : t("common.error"));
     } finally {
       setSaving(false);
     }
@@ -85,7 +88,7 @@ export default function WorkflowDetailPage() {
       });
       router.push(`/runs/${run.id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "could not start the run");
+      setError(err instanceof Error ? err.message : t("common.error"));
       setStarting(false);
     }
   }
@@ -100,14 +103,14 @@ export default function WorkflowDetailPage() {
     <>
       <PageHeader
         title={workflow.name}
-        description={presetInfo?.summary}
+        description={presetInfo ? t(`preset.${presetInfo.name}Hint`) : undefined}
         action={
           <div className="flex gap-2">
             <Button variant="secondary" onClick={save} loading={saving} disabled={!dirty}>
-              {dirty ? "Save changes" : "Saved"}
+              {dirty ? t("common.saveChanges") : t("common.saved")}
             </Button>
             <Button onClick={() => setRunModal(true)} disabled={dirty}>
-              Run
+              {t("office.giveTask")}
             </Button>
           </div>
         }
@@ -120,7 +123,7 @@ export default function WorkflowDetailPage() {
       <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
         <div className="space-y-4">
           <Card className="space-y-4">
-            <Field label="Name">
+            <Field label={t("workflows.name")}>
               <Input
                 value={name}
                 onChange={(e) => {
@@ -129,7 +132,7 @@ export default function WorkflowDetailPage() {
                 }}
               />
             </Field>
-            <Field label="Description">
+            <Field label={t("workflows.description")}>
               <Textarea
                 rows={2}
                 value={description}
@@ -140,10 +143,8 @@ export default function WorkflowDetailPage() {
               />
             </Field>
             <div className="flex items-center gap-2">
-              <Badge tone="info">{workflow.preset}</Badge>
-              <span className="text-xs text-ink-500">
-                Topology cannot be changed after creation.
-              </span>
+              <Badge tone="info">{t(`preset.${workflow.preset}`)}</Badge>
+              <span className="text-xs text-ink-500">{t("workflows.presetLocked")}</span>
             </div>
           </Card>
 
@@ -160,37 +161,35 @@ export default function WorkflowDetailPage() {
 
         <div className="space-y-3">
           <GraphPreview preset={workflow.preset} graph={graph} agents={agents} />
-          <p className="text-xs text-ink-500">
-            The diagram shows the topology as configured. In supervisor, swarm and custom
-            workflows the actual path is decided at run time — the live run view shows the
-            route that was taken.
-          </p>
+          <p className="text-xs text-ink-500">{t("workflows.diagramHint")}</p>
         </div>
       </div>
 
-      <Modal open={runModal} title="Start a run" onClose={() => setRunModal(false)}>
+      <Modal open={runModal} title={t("office.giveTask")} onClose={() => setRunModal(false)}>
         <div className="space-y-4">
-          <Field
-            label="Task"
-            hint="Give the team the full brief up front — they cannot ask you follow-up questions."
-          >
+          <Field label={t("office.taskLabel")} hint={t("office.taskHint")}>
             <Textarea
               rows={8}
               value={runInput}
               onChange={(e) => setRunInput(e.target.value)}
-              placeholder="Build a URL shortener with an API, rate limiting and tests."
+              placeholder={t("office.taskPlaceholder")}
             />
           </Field>
           <p className="text-xs text-ink-500">
-            Ceiling: {String(graph.max_steps ?? "—")} steps, {String(graph.max_cost_cents ?? "—")}{" "}
-            cents.
+            {t("office.ceiling", {
+              steps: String(graph.max_steps ?? "—"),
+              cost:
+                typeof graph.max_cost_cents === "number"
+                  ? formatCents(graph.max_cost_cents)
+                  : "—",
+            })}
           </p>
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={() => setRunModal(false)}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button onClick={startRun} loading={starting} disabled={!runInput.trim()}>
-              Start
+              {t("office.startWork")}
             </Button>
           </div>
         </div>

@@ -53,3 +53,220 @@ body {
     opacity: 0;
   }
 }
+
+/* --- the office ---------------------------------------------------------
+ *
+ * The scene's positions are written straight to the DOM by the animation
+ * loop; everything that repeats forever — the walk cycle, typing hands, the
+ * idle bob — is CSS keyed off `data-activity`, so it costs no React renders.
+ */
+
+.office-frame {
+  background: #0d0f14;
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+.ch-face {
+  display: none;
+}
+
+[data-facing="down"] .ch-face-down,
+[data-facing="up"] .ch-face-up,
+[data-facing="left"] .ch-face-side,
+[data-facing="right"] .ch-face-side {
+  display: block;
+}
+
+/* Left is the mirror of right; 10 is the sprite width. */
+[data-facing="left"] .ch {
+  transform: translateX(10px) scaleX(-1);
+}
+
+[data-sitting="true"] .ch-sit {
+  transform: translateY(3px);
+}
+
+[data-sitting="true"] .ch-legs {
+  display: none;
+}
+
+.ch-hands {
+  display: none;
+}
+
+[data-activity="work"] .ch-hands {
+  display: block;
+  animation: office-type 0.3s steps(2, jump-none) infinite;
+}
+
+[data-activity="walk"] .ch-leg-a {
+  animation: office-step-a 0.3s infinite;
+}
+
+[data-activity="walk"] .ch-leg-b {
+  animation: office-step-b 0.3s infinite;
+}
+
+[data-activity="idle"] .ch-body,
+[data-activity="talk"] .ch-body {
+  animation: office-bob 2.6s ease-in-out infinite;
+}
+
+[data-activity="read"] .ch-body,
+[data-activity="pin"] .ch-body,
+[data-activity="tool"] .ch-body {
+  animation: office-busy 0.9s ease-in-out infinite;
+}
+
+[data-activity="cheer"] .ch-body {
+  animation: office-cheer 0.5s ease-in-out infinite;
+}
+
+/* The agent whose turn it is gets a warm pool of light. */
+[data-active="true"] .ch-shadow {
+  fill: #ffc857;
+  opacity: 0.55;
+}
+
+@keyframes office-step-a {
+  0%,
+  49.9% {
+    transform: translateY(-1px);
+  }
+  50%,
+  100% {
+    transform: translateY(0);
+  }
+}
+
+@keyframes office-step-b {
+  0%,
+  49.9% {
+    transform: translateY(0);
+  }
+  50%,
+  100% {
+    transform: translateY(-1px);
+  }
+}
+
+@keyframes office-type {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-1px);
+  }
+}
+
+@keyframes office-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-0.5px);
+  }
+}
+
+@keyframes office-busy {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-1px);
+  }
+}
+
+@keyframes office-cheer {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+/* Stations glow while an agent is using them. */
+.station[data-busy="true"] .printer-lamp {
+  animation: office-blink 0.4s steps(2, jump-none) infinite;
+}
+
+.station[data-busy="true"] .terminal-screen {
+  fill: #1f6f4a;
+}
+
+.station[data-busy="true"] .terminal-led {
+  animation: office-blink 0.5s steps(2, jump-none) infinite;
+}
+
+.screen[data-active="true"] {
+  fill: #7fd8ff;
+}
+
+@keyframes office-blink {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.25;
+  }
+}
+
+/* A page pinned to the board arrives with a small pop. */
+.board-page {
+  animation: office-pop 0.35s ease-out;
+}
+
+@keyframes office-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.office-nametag {
+  display: inline-block;
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: #fff;
+  white-space: nowrap;
+  text-shadow: 0 1px 1px rgb(0 0 0 / 0.45);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.4);
+}
+
+.office-bubble {
+  max-width: 15rem;
+  margin-bottom: 4px;
+  border: 2px solid;
+  border-radius: 6px;
+  background: #fffdf7;
+  padding: 4px 6px;
+  font-size: 11px;
+  line-height: 1.3;
+  color: #241f1a;
+  box-shadow: 0 2px 0 rgb(0 0 0 / 0.25);
+  word-break: break-word;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ch-body,
+  .ch-leg-a,
+  .ch-leg-b,
+  .ch-hands,
+  .board-page,
+  .printer-lamp,
+  .terminal-led {
+    animation: none !important;
+  }
+}

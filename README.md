@@ -8,7 +8,7 @@ each other. Models come from **Anthropic, OpenAI, xAI and Google**, running on
 either the platform's provider keys or the customer's own.
 
 ```
-Browser ──▶ Caddy ──┬──▶ Next.js (UI, React Flow editor, live run view)
+Browser ──▶ Caddy ──┬──▶ Next.js (animated office view, editors, live run)
                     └──▶ FastAPI ──┬──▶ PostgreSQL
                                    ├──▶ Redis ──▶ ARQ workers ──▶ providers
                                    └──▶ SSE stream back to the browser
@@ -73,6 +73,8 @@ core/
 api/                   routers, schemas, auth dependencies, middleware
 worker/                ARQ worker, cron sweeps, Prometheus metrics
 web/                   Next.js app
+  src/lib/office/      floor plan, pathfinding, the run-event simulation
+  src/components/office/  pixel sprites and the animated scene
 migrations/            Alembic
 scripts/               seed, key rotation, superuser
 tests/                 217 tests
@@ -125,6 +127,30 @@ cd web && npm install && npm run dev
 
 The UI is at `http://localhost:3000`; it proxies `/api` to the backend so the
 browser sees one origin.
+
+### The office
+
+The front door is `/office`: a top-down pixel-art room where every agent on the
+team is a character at a desk. You type a task, they get up and do it.
+
+The choreography is not decoration — it is the engine, drawn:
+
+| On screen | In `core/orchestration` |
+|---|---|
+| The agent walks to the board and reads it | every prompt is the whole shared transcript |
+| It sits down and types | `step.token` streaming |
+| It walks to the terminal, the printer or the filing cabinet | `tool.call`, routed by tool name |
+| A page flies into the cabinet | `artifact.written` |
+| It pins its page to the board | `step.end` — the output is appended to the shared board |
+| Only ever one person is working | every preset awaits each turn; steps are strictly sequential |
+
+A finished run is rebuilt from the database and can be played back
+(`web/src/lib/office/replay.ts`), so the room is never a dead screen. The
+numbers, the transcript and the tool arguments are all still there, one click
+away under **Подробности**.
+
+The interface is Russian by default with an English switch in the sidebar
+(`web/src/lib/i18n.tsx`).
 
 ## Deploying
 

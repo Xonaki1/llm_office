@@ -5,9 +5,11 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 
 import { useAuth } from "@/lib/auth";
+import { useT } from "@/lib/i18n";
 import { Button, ErrorBanner, Field, Input } from "@/components/ui";
 
 export default function LoginPage() {
+  const t = useT();
   const router = useRouter();
   const { login, me, loading } = useAuth();
   const [email, setEmail] = useState("");
@@ -26,7 +28,7 @@ export default function LoginPage() {
     try {
       await login(email, password);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "sign-in failed");
+      setError(err instanceof Error ? err.message : t("auth.signInFailed"));
     } finally {
       setSubmitting(false);
     }
@@ -39,13 +41,13 @@ export default function LoginPage() {
         className="w-full max-w-sm space-y-4 rounded-lg border border-ink-800 bg-ink-900/60 p-6"
       >
         <div>
-          <h1 className="text-lg font-semibold text-ink-50">Sign in</h1>
-          <p className="mt-1 text-sm text-ink-500">Agents Office</p>
+          <h1 className="text-lg font-semibold text-ink-50">{t("auth.signIn")}</h1>
+          <p className="mt-1 text-sm text-ink-500">{t("auth.tagline")}</p>
         </div>
 
         <ErrorBanner message={error} />
 
-        <Field label="Email">
+        <Field label={t("auth.email")}>
           <Input
             type="email"
             autoComplete="email"
@@ -55,7 +57,7 @@ export default function LoginPage() {
           />
         </Field>
 
-        <Field label="Password">
+        <Field label={t("auth.password")}>
           <Input
             type="password"
             autoComplete="current-password"
@@ -66,13 +68,12 @@ export default function LoginPage() {
         </Field>
 
         <Button type="submit" loading={submitting} className="w-full">
-          Sign in
+          {t("auth.signInAction")}
         </Button>
 
         <p className="text-center text-sm text-ink-500">
-          No account?{" "}
           <Link href="/register" className="text-brand-400 hover:underline">
-            Create one
+            {t("auth.toSignUp")}
           </Link>
         </p>
       </form>

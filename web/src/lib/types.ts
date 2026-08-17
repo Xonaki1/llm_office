@@ -230,10 +230,12 @@ export type RunEvent =
   | { seq: number; type: "run.start"; run_id: string; ts: string; workflow_name: string; preset: string; key_mode: string; max_steps: number; max_cost_cents: number }
   | { seq: number; type: "step.start"; run_id: string; ts: string; step: number; agent_id: string; agent_name: string; role: string; model: string; effort: string; instruction: string; tools: string[] }
   | { seq: number; type: "step.token"; run_id: string; ts: string; step: number; text: string }
-  | { seq: number; type: "step.end"; run_id: string; ts: string; step: number; agent_name: string; role: string; model: string; provider: string; tokens_in: number; tokens_out: number; cached_tokens: number; cost_microcents: number; latency_ms: number; attempts: number; spent_microcents: number; steps_used: number; output: string }
+  // A refusal ends the step early: only `refused` and `category` come with it,
+  // so every metric here has to be treated as optional by the UI.
+  | { seq: number; type: "step.end"; run_id: string; ts: string; step: number; agent_name: string; agent_id?: string; role?: string; model?: string; provider?: string; tokens_in?: number; tokens_out?: number; cached_tokens?: number; cost_microcents?: number; latency_ms?: number; attempts?: number; spent_microcents?: number; steps_used?: number; output?: string; refused?: boolean; category?: string }
   | { seq: number; type: "tool.call"; run_id: string; ts: string; step: number; call: number; tool: string; agent_name: string; arguments: Record<string, unknown> }
   | { seq: number; type: "tool.result"; run_id: string; ts: string; step: number; call: number; tool: string; agent_name: string; is_error: boolean; latency_ms: number; preview: string; metadata: Record<string, unknown> }
-  | { seq: number; type: "artifact.written"; run_id: string; ts: string; step: number; path: string; version: number; kind: string; size_bytes: number; agent_name: string }
+  | { seq: number; type: "artifact.written"; run_id: string; ts: string; step: number; path: string; version: number; kind: string; size_bytes: number; agent_name: string; via?: "tool" | "message" }
   | { seq: number; type: "budget.warning"; run_id: string; ts: string; spent_microcents: number; limit_microcents: number }
   | { seq: number; type: "budget.exceeded"; run_id: string; ts: string; reason: string }
   | { seq: number; type: "run.end" | "run.cancelled" | "run.error"; run_id: string; ts: string; status: RunStatus; error: string | null; output: string | null; steps_used?: number; cost_cents?: number };

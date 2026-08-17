@@ -12,7 +12,7 @@ export default function IndexPage() {
 
   useEffect(() => {
     if (loading) return;
-    router.replace(me ? "/runs" : "/login");
+    router.replace(me ? "/office" : "/login");
   }, [loading, me, router]);
 
   return (

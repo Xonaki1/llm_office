@@ -6,6 +6,7 @@ import { useCallback, useState } from "react";
 
 import { api } from "@/lib/api";
 import { useOrgId } from "@/lib/auth";
+import { useT } from "@/lib/i18n";
 import { useLoader } from "@/lib/use-loader";
 import { formatRelative } from "@/lib/format";
 import type { Agent, Preset, PresetInfo, Workflow } from "@/lib/types";
@@ -26,6 +27,7 @@ import {
 import { blankGraph } from "@/components/graph-editor";
 
 export default function WorkflowsPage() {
+  const t = useT();
   const orgId = useOrgId();
   const router = useRouter();
   const [workflows, setWorkflows] = useState<Workflow[] | null>(null);
@@ -64,23 +66,22 @@ export default function WorkflowsPage() {
       setCreating(false);
       router.push(`/workflows/${created.id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "could not create the workflow");
+      setError(err instanceof Error ? err.message : t("workflows.createFailed"));
     } finally {
       setSaving(false);
     }
   }
 
-  const selectedPreset = presets.find((p) => p.name === preset);
   const enoughAgents = agents.length >= 2;
 
   return (
     <>
       <PageHeader
-        title="Workflows"
-        description="A workflow is a topology plus the agents that fill it."
+        title={t("workflows.title")}
+        description={t("workflows.subtitle")}
         action={
           <Button onClick={() => setCreating(true)} disabled={agents.length === 0}>
-            New workflow
+            {t("workflows.newWorkflow")}
           </Button>
         }
       />
@@ -93,19 +94,15 @@ export default function WorkflowsPage() {
         <Spinner className="h-5 w-5 text-ink-500" />
       ) : workflows.length === 0 ? (
         <EmptyState
-          title="No workflows yet"
-          description={
-            agents.length === 0
-              ? "Create some agents first — a workflow needs agents to fill its roles."
-              : "Pick a topology and assign your agents to it."
-          }
+          title={t("workflows.empty")}
+          description={agents.length === 0 ? t("office.hireFirstHint") : t("workflows.emptyHint")}
           action={
             agents.length === 0 ? (
               <Link href="/agents">
-                <Button>Go to agents</Button>
+                <Button>{t("office.hire")}</Button>
               </Link>
             ) : (
-              <Button onClick={() => setCreating(true)}>Create a workflow</Button>
+              <Button onClick={() => setCreating(true)}>{t("office.createTeam")}</Button>
             )
           }
         />
@@ -116,13 +113,13 @@ export default function WorkflowsPage() {
               <Card className="h-full transition-colors hover:border-ink-700">
                 <div className="flex items-start justify-between gap-2">
                   <p className="font-medium text-ink-50">{workflow.name}</p>
-                  <Badge tone="info">{workflow.preset}</Badge>
+                  <Badge tone="info">{t(`preset.${workflow.preset}`)}</Badge>
                 </div>
                 <p className="mt-2 line-clamp-2 text-xs text-ink-400">
-                  {workflow.description || "No description."}
+                  {workflow.description || t("workflows.noDescription")}
                 </p>
                 <p className="mt-3 text-xs text-ink-600">
-                  Updated {formatRelative(workflow.updated_at)}
+                  {t("workflows.updated", { when: formatRelative(workflow.updated_at) })}
                 </p>
               </Card>
             </Link>
@@ -130,20 +127,19 @@ export default function WorkflowsPage() {
         </div>
       )}
 
-      <Modal open={creating} title="New workflow" onClose={() => setCreating(false)}>
+      <Modal open={creating} title={t("workflows.newWorkflow")} onClose={() => setCreating(false)}>
         <div className="space-y-4">
           {!enoughAgents && (
             <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-300">
-              Most topologies need at least two agents. You can still create this one and
-              assign agents later.
+              {t("workflows.needTwoAgents")}
             </p>
           )}
 
-          <Field label="Name">
+          <Field label={t("workflows.name")}>
             <Input value={name} onChange={(e) => setName(e.target.value)} />
           </Field>
 
-          <Field label="Description">
+          <Field label={t("workflows.description")}>
             <Textarea
               rows={2}
               value={description}
@@ -151,11 +147,11 @@ export default function WorkflowsPage() {
             />
           </Field>
 
-          <Field label="Topology" hint={selectedPreset?.summary}>
+          <Field label={t("workflows.preset")} hint={t(`preset.${preset}Hint`)}>
             <Select value={preset} onChange={(e) => setPreset(e.target.value as Preset)}>
               {presets.map((p) => (
                 <option key={p.name} value={p.name}>
-                  {p.name}
+                  {t(`preset.${p.name}`)}
                 </option>
               ))}
             </Select>
@@ -163,10 +159,10 @@ export default function WorkflowsPage() {
 
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={() => setCreating(false)}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button onClick={create} loading={saving} disabled={!name}>
-              Create and edit
+              {t("workflows.create")}
             </Button>
           </div>
         </div>

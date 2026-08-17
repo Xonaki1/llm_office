@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 
 import { api } from "@/lib/api";
 import { canManage, useAuth, useOrgId } from "@/lib/auth";
+import { useT } from "@/lib/i18n";
 import { useLoader } from "@/lib/use-loader";
 import { formatCents, formatDateTime } from "@/lib/format";
 import type { Balance, LedgerEntry, Member } from "@/lib/types";
@@ -20,6 +21,7 @@ import {
 } from "@/components/ui";
 
 export default function BillingPage() {
+  const t = useT();
   const orgId = useOrgId();
   const { org, reload: reloadSession } = useAuth();
   const [balance, setBalance] = useState<Balance | null>(null);
@@ -31,6 +33,20 @@ export default function BillingPage() {
   const [busy, setBusy] = useState(false);
 
   const isOwner = org?.role === "owner";
+
+  // Roles and ledger kinds come from the API as bare identifiers; show the
+  // friendly wording when we have it and the raw value when we do not.
+  function roleLabel(role: string): string {
+    const key = `billing.role.${role}`;
+    const label = t(key);
+    return label === key ? role : label;
+  }
+
+  function kindLabel(kind: string): string {
+    const key = `billing.ledgerKind.${kind}`;
+    const label = t(key);
+    return label === key ? kind : label;
+  }
 
   const load = useCallback(async () => {
     const [balanceData, ledgerData, memberData] = await Promise.all([
@@ -55,7 +71,7 @@ export default function BillingPage() {
       });
       await Promise.all([load(), reloadSession()]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "top-up failed");
+      setError(err instanceof Error ? err.message : t("billing.topupFailed"));
     } finally {
       setBusy(false);
     }
@@ -69,28 +85,25 @@ export default function BillingPage() {
       setInviteEmail("");
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "could not add the member");
+      setError(err instanceof Error ? err.message : t("billing.addMemberFailed"));
     } finally {
       setBusy(false);
     }
   }
 
   async function removeMember(member: Member) {
-    if (!window.confirm(`Remove ${member.email} from this workspace?`)) return;
+    if (!window.confirm(t("billing.removeMemberConfirm", { email: member.email }))) return;
     try {
       await api.delete(`/orgs/${orgId}/members/${member.user_id}`);
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "could not remove the member");
+      setError(err instanceof Error ? err.message : t("billing.removeMemberFailed"));
     }
   }
 
   return (
     <>
-      <PageHeader
-        title="Billing and members"
-        description="Credits are spent only on runs that use the platform's provider keys."
-      />
+      <PageHeader title={t("billing.title")} description={t("billing.subtitle")} />
 
       <div className="mb-4">
         <ErrorBanner message={error} />
@@ -102,20 +115,20 @@ export default function BillingPage() {
         <div className="grid gap-6 lg:grid-cols-2">
           <Card className="space-y-4">
             <div>
-              <p className="text-xs uppercase tracking-wide text-ink-500">Balance</p>
+              <p className="text-xs uppercase tracking-wide text-ink-500">{t("billing.balance")}</p>
               <p className="mt-1 text-3xl font-semibold text-ink-50">
                 {formatCents(balance.credits_cents)}
               </p>
               <p className="mt-1 text-xs text-ink-500">
                 {balance.billing_enabled
-                  ? `Platform-key spend is charged with a ${balance.markup_percent}% markup.`
-                  : "Billing is disabled on this deployment."}
+                  ? t("billing.markup", { percent: balance.markup_percent })
+                  : t("billing.disabled")}
               </p>
             </div>
 
             {isOwner && (
               <div className="flex items-end gap-2">
-                <Field label="Add credit (cents)">
+                <Field label={t("billing.topupLabel")}>
                   <Input
                     type="number"
                     min={1}
@@ -124,30 +137,30 @@ export default function BillingPage() {
                   />
                 </Field>
                 <Button onClick={topup} loading={busy}>
-                  Add
+                  {t("common.add")}
                 </Button>
               </div>
             )}
           </Card>
 
           <Card className="space-y-4">
-            <p className="text-sm font-medium text-ink-100">Members</p>
+            <p className="text-sm font-medium text-ink-100">{t("billing.members")}</p>
             <ul className="space-y-2">
               {members.map((member) => (
                 <li key={member.user_id} className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
                     <p className="truncate text-sm text-ink-100">{member.email}</p>
                     <p className="text-xs text-ink-500">
-                      joined {formatDateTime(member.joined_at)}
+                      {t("billing.joined", { date: formatDateTime(member.joined_at) })}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge tone={member.role === "owner" ? "info" : "neutral"}>
-                      {member.role}
+                      {roleLabel(member.role)}
                     </Badge>
                     {canManage(org?.role) && members.length > 1 && (
                       <Button variant="ghost" onClick={() => removeMember(member)}>
-                        Remove
+                        {t("common.remove")}
                       </Button>
                     )}
                   </div>
@@ -157,10 +170,7 @@ export default function BillingPage() {
 
             {canManage(org?.role) && (
               <div className="space-y-2 border-t border-ink-800 pt-4">
-                <Field
-                  label="Add an existing account"
-                  hint="They must already have registered — we never create an account on someone's behalf."
-                >
+                <Field label={t("billing.addMember")} hint={t("billing.addMemberHint")}>
                   <Input
                     type="email"
                     value={inviteEmail}
@@ -170,13 +180,13 @@ export default function BillingPage() {
                 </Field>
                 <div className="flex gap-2">
                   <Select value={inviteRole} onChange={(e) => setInviteRole(e.target.value)}>
-                    <option value="viewer">viewer</option>
-                    <option value="member">member</option>
-                    <option value="admin">admin</option>
-                    {isOwner && <option value="owner">owner</option>}
+                    <option value="viewer">{roleLabel("viewer")}</option>
+                    <option value="member">{roleLabel("member")}</option>
+                    <option value="admin">{roleLabel("admin")}</option>
+                    {isOwner && <option value="owner">{roleLabel("owner")}</option>}
                   </Select>
                   <Button onClick={addMember} loading={busy} disabled={!inviteEmail}>
-                    Add
+                    {t("common.add")}
                   </Button>
                 </div>
               </div>
@@ -185,22 +195,22 @@ export default function BillingPage() {
         </div>
       )}
 
-      <h2 className="mb-3 mt-8 text-sm font-medium text-ink-200">Ledger</h2>
+      <h2 className="mb-3 mt-8 text-sm font-medium text-ink-200">{t("billing.history")}</h2>
 
       {ledger.length === 0 ? (
         <Card>
-          <p className="text-sm text-ink-500">No entries yet.</p>
+          <p className="text-sm text-ink-500">{t("billing.empty")}</p>
         </Card>
       ) : (
         <div className="overflow-hidden rounded-lg border border-ink-800">
           <table className="w-full text-sm">
             <thead className="bg-ink-900/60 text-left text-xs uppercase tracking-wide text-ink-500">
               <tr>
-                <th className="px-4 py-2 font-medium">When</th>
-                <th className="px-4 py-2 font-medium">Kind</th>
-                <th className="px-4 py-2 font-medium">Description</th>
-                <th className="px-4 py-2 text-right font-medium">Amount</th>
-                <th className="px-4 py-2 text-right font-medium">Balance</th>
+                <th className="px-4 py-2 font-medium">{t("billing.date")}</th>
+                <th className="px-4 py-2 font-medium">{t("billing.kind")}</th>
+                <th className="px-4 py-2 font-medium">{t("billing.comment")}</th>
+                <th className="px-4 py-2 text-right font-medium">{t("billing.amount")}</th>
+                <th className="px-4 py-2 text-right font-medium">{t("billing.balanceAfter")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-ink-800">
@@ -209,7 +219,7 @@ export default function BillingPage() {
                   <td className="px-4 py-2 text-ink-500">{formatDateTime(entry.created_at)}</td>
                   <td className="px-4 py-2">
                     <Badge tone={entry.amount_cents >= 0 ? "success" : "neutral"}>
-                      {entry.kind}
+                      {kindLabel(entry.kind)}
                     </Badge>
                   </td>
                   <td className="max-w-xs truncate px-4 py-2 text-ink-400">
