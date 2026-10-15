@@ -2,7 +2,7 @@
 # Multi-stage: wheels are built once and copied into a slim runtime image that
 # carries no compiler toolchain.
 
-FROM python:3.12-slim AS builder
+FROM python:3.14-slim AS builder
 
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_NO_CACHE_DIR=1 \
@@ -24,7 +24,7 @@ RUN python -m venv /opt/venv \
     && /opt/venv/bin/pip install .
 
 
-FROM python:3.12-slim AS runtime
+FROM python:3.14-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
